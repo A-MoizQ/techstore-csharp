@@ -1,0 +1,29 @@
+@page "/loginSignup"
+@inject HttpClient Http
+
+<h3>Login / Signup</h3>
+
+<input @bind="Username" placeholder="Username" />
+<input type="password" @bind="Password" placeholder="Password" />
+<button @onclick="Signup">Sign Up</button>
+<button @onclick="Login">Login</button>
+
+<p>@Message</p>
+
+@code {
+    private string Username { get; set; } = string.Empty;
+    private string Password { get; set; } = string.Empty;
+    private string Message { get; set; } = string.Empty;
+
+    private async Task Signup()
+    {
+        var response = await Http.PostAsJsonAsync("/signup", new { Uname = Username, Password });
+        Message = response.IsSuccessStatusCode ? "Signup successful" : "Signup failed";
+    }
+
+    private async Task Login()
+    {
+        var response = await Http.PostAsJsonAsync("/login", new { Uname = Username, Password });
+        Message = response.IsSuccessStatusCode ? "Login successful" : "Invalid credentials";
+    }
+}
