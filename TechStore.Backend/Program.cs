@@ -1,22 +1,32 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Web;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Data.Sqlite;
 using System.Text.RegularExpressions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services for Blazor
-builder.Services.AddRazorPages();
-builder.Services.AddServerSideBlazor();
+// Configure CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins("https://localhost:5000") // Frontend URL (adjust if needed)
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
 
+builder.Services.AddControllers();
 var app = builder.Build();
 
+app.UseCors("AllowFrontend");
+app.UseAuthorization();
+app.MapControllers();
+
+// Your custom endpoints (or use Controllers)
+// Example: Use minimal APIs for login/signup:
 string dbPath = "databases/users.db";
 Directory.CreateDirectory("databases");
-Directory.CreateDirectory("wwwroot/images");
 
+// Create or open SQLite database and table...
 using (var connection = new SqliteConnection($"Data Source={dbPath}"))
 {
     connection.Open();
@@ -25,7 +35,6 @@ using (var connection = new SqliteConnection($"Data Source={dbPath}"))
     command.ExecuteNonQuery();
 }
 
-// API routes for login/signup
 app.MapPost("/signup", async (HttpContext context) =>
 {
     var form = await context.Request.ReadFormAsync();
@@ -71,11 +80,5 @@ app.MapPost("/login", async (HttpContext context) =>
     }
     return Results.BadRequest("Invalid credentials");
 });
-
-// Enable Blazor routing
-app.UseStaticFiles();
-app.UseRouting();
-app.MapBlazorHub();
-app.MapFallbackToPage("/_Host");
 
 app.Run();
