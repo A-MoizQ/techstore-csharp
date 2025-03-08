@@ -1,0 +1,100 @@
+/* Container */
+.auth-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background: #f8f8f8;
+}
+
+/* Box */
+.auth-box {
+    background: white;
+    width: 350px;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+/* Tab Buttons */
+.tab-container {
+    display: flex;
+    border-bottom: 2px solid #ddd;
+}
+
+.tab {
+    flex: 1;
+    padding: 10px;
+    font-size: 16px;
+    cursor: pointer;
+    border: none;
+    background: none;
+    font-weight: bold;
+    color: #777;
+}
+
+.tab.active {
+    color: #df863d;
+    border-bottom: 3px solid #df863d;
+}
+
+/* Form Styling */
+.form-container {
+    padding: 20px 0;
+}
+
+/* Inputs */
+.input-group {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    margin-bottom: 15px;
+}
+
+.input-group label {
+    font-size: 14px;
+    margin-bottom: 5px;
+    color: #555;
+}
+
+.input-group input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+
+/* Button */
+.btn {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    border: none;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.btn:hover {
+    background-color: #777;
+    color: white;
+    border: #df863d;
+}
+
+.primary-btn {
+    background: #df863d;;
+    color: white;
+    border-radius: 5px;
+}
+
+/* Switch Text */
+.switch-text {
+    margin-top: 10px;
+    font-size: 14px;
+    color: #555;
+}
+
+.switch-text a {
+    color: #df863d;
+    cursor: pointer;
+}

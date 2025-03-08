@@ -2,34 +2,66 @@
 @inject HttpClient Http
 @inject NavigationManager Navigation
 
-<h3>Login / Signup</h3>
+<link href="css/site.css" rel="stylesheet" />
 
-<div>
-    <input @bind="Username" placeholder="Username" />
-    <input type="password" @bind="Password" placeholder="Password" />
+<div class="auth-container">
+    <div class="auth-box">
+        <!-- Toggle Tabs -->
+        <div class="tab-container">
+            <button class="tab @(isSignup ? "active" : "")" @onclick="ShowSignup">SIGN UP</button>
+            <button class="tab @(isSignup ? "" : "active")" @onclick="ShowLogin">LOG IN</button>
+        </div>
+
+        <!-- Login Form -->
+        <div class="form-container" style="@(isSignup ? "display: none;" : "display: block;")">
+            <div class="input-group">
+                <label>Username *</label>
+                <input type="text" @bind="Username" placeholder="Enter your username" />
+            </div>
+
+            <div class="input-group">
+                <label>Password *</label>
+                <input type="password" @bind="Password" placeholder="Enter password" />
+            </div>
+
+            <button class="btn primary-btn" @onclick="Login">Sign In</button>
+
+            <p class="switch-text">
+                Don't have an account? <a href="#" @onclick="ShowSignup">Sign Up</a>
+            </p>
+        </div>
+
+        <!-- Signup Form -->
+        <div class="form-container" style="@(isSignup ? "display: block;" : "display: none;")">
+            <div class="input-group">
+                <label>Username *</label>
+                <input type="text" @bind="Username" placeholder="Enter your username" />
+            </div>
+
+            <div class="input-group">
+                <label>Password *</label>
+                <input type="password" @bind="Password" placeholder="Enter password" />
+            </div>
+
+            <button class="btn primary-btn" @onclick="SignupUser">Register</button>
+
+            <p class="switch-text">
+                Already have an account? <a href="#" @onclick="ShowLogin">Sign In</a>
+            </p>
+        </div>
+    </div>
 </div>
-<div>
-    <button @onclick="Signup">Sign Up</button>
-    <button @onclick="Login">Login</button>
-</div>
-<p>@Message</p>
+
+<p class="message">@Message</p>
 
 @code {
     private string Username { get; set; } = string.Empty;
     private string Password { get; set; } = string.Empty;
     private string Message { get; set; } = string.Empty;
+    private bool isSignup { get; set; } = false;
 
-    private async Task Signup()
-    {
-        var formData = new MultipartFormDataContent
-        {
-            { new StringContent(Username), "uname" },
-            { new StringContent(Password), "password" }
-        };
-
-        var response = await Http.PostAsync("signup", formData);
-        Message = response.IsSuccessStatusCode ? "Signup successful" : await response.Content.ReadAsStringAsync();
-    }
+    private void ShowSignup() => isSignup = true;
+    private void ShowLogin() => isSignup = false;
 
     private async Task Login()
     {
@@ -40,14 +72,18 @@
         };
 
         var response = await Http.PostAsync("login", formData);
-        if (response.IsSuccessStatusCode)
+        Message = response.IsSuccessStatusCode ? "Login successful!" : await response.Content.ReadAsStringAsync();
+    }
+
+    private async Task SignupUser()
+    {
+        var formData = new MultipartFormDataContent
         {
-            Message = "Login successful";
-            Navigation.NavigateTo("/home");
-        }
-        else
-        {
-            Message = await response.Content.ReadAsStringAsync();
-        }
+            { new StringContent(Username), "uname" },
+            { new StringContent(Password), "password" }
+        };
+
+        var response = await Http.PostAsync("signup", formData);
+        Message = response.IsSuccessStatusCode ? "Signup successful!" : await response.Content.ReadAsStringAsync();
     }
 }
