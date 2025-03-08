@@ -1,4 +1,87 @@
 ﻿@page "/home"
+@using System.Net.Http.Json
+@inject HttpClient Http
 
-<h3>Welcome Home!</h3>
-<p>You are now logged in.</p>
+<h3>Homepage</h3>
+
+@if (homepageData == null)
+{
+    <p>Loading homepage...</p>
+}
+else if (!string.IsNullOrEmpty(errorMessage))
+{
+    <p style="color:red">@errorMessage</p>
+}
+else
+{
+    <h4>Top Selling Products</h4>
+    <div style="display: flex; gap: 20px; overflow-x: auto;">
+        @foreach (var product in homepageData.products)
+        {
+            <div style="min-width: 200px; border: 1px solid #ccc; padding: 10px;">
+                <h5>@product.name</h5>
+                @if (!string.IsNullOrEmpty(product.image))
+                {
+                    <img src="data:image/jpeg;base64,@product.image" alt="@product.name" style="width:100%;" />
+                }
+                <p>@product.description</p>
+                <p>Rating: @product.rating</p>
+                <p>Price: @product.price</p>
+            </div>
+        }
+    </div>
+
+    <h4>Categories</h4>
+    <div style="display: flex; gap: 10px; overflow-x: auto;">
+        @foreach (var cat in homepageData.categories)
+        {
+            <div style="min-width: 150px; border: 1px solid #ccc; padding: 10px; text-align: center;">
+                <h5>@cat.category</h5>
+                @if (!string.IsNullOrEmpty(cat.image))
+                {
+                    <img src="data:image/jpeg;base64,@cat.image" alt="@cat.category" style="width:100%;" />
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private HomepageData? homepageData;
+    private string errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            homepageData = await Http.GetFromJsonAsync<HomepageData>("homepage");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    public class HomepageData
+    {
+        public List<Product> products { get; set; } = new();
+        public List<CategoryDisplay> categories { get; set; } = new();
+    }
+
+    public class Product
+    {
+        public int id { get; set; }
+        public string name { get; set; } = string.Empty;
+        public string? description { get; set; }
+        public string? image { get; set; }
+        public int rating { get; set; }
+        public double price { get; set; }
+        public bool isTop { get; set; }
+    }
+
+    public class CategoryDisplay
+    {
+        public string category { get; set; } = string.Empty;
+        public string? image { get; set; }
+    }
+}

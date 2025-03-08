@@ -1,0 +1,53 @@
+@page "/categories"
+@using System.Net.Http.Json
+@inject HttpClient Http
+
+<h3>Categories</h3>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <p style="color:red">@errorMessage</p>
+}
+else if (categories == null || categories.Count == 0)
+{
+    <p>Loading categories...</p>
+}
+else
+{
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+        @foreach (var cat in categories)
+        {
+            <div style="min-width: 150px; border: 1px solid #ccc; padding: 10px; text-align: center;">
+                <h5>@cat.category</h5>
+                @if (!string.IsNullOrEmpty(cat.image))
+                {
+                    <img src="data:image/jpeg;base64,@cat.image" alt="@cat.category" style="width:100%;" />
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<CategoryDisplay> categories = new();
+    private string errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            categories = await Http.GetFromJsonAsync<List<CategoryDisplay>>("categories") 
+                         ?? new List<CategoryDisplay>();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    public class CategoryDisplay
+    {
+        public string category { get; set; } = string.Empty;
+        public string? image { get; set; }
+    }
+}

@@ -175,4 +175,129 @@ app.MapGet("/product/{id:int}", async (int id) =>
     return Results.NotFound("Product not found.");
 });
 
+app.MapGet("/topselling", () =>
+{
+    string productsDbPath = "databases/products.db";
+    using var connection = new SqliteConnection($"Data Source={productsDbPath}");
+    connection.Open();
+    var command = connection.CreateCommand();
+    command.CommandText = @"
+        SELECT id, name, description, image, rating, price, isTop 
+        FROM products 
+        WHERE isTop = 1
+        ORDER BY name ASC";
+    
+    using var reader = command.ExecuteReader();
+    var products = new List<object>();
+    while (reader.Read())
+    {
+        var product = new
+        {
+            id = reader.GetInt32(0),
+            name = reader.GetString(1),
+            description = reader.IsDBNull(2) ? null : reader.GetString(2),
+            image = reader.IsDBNull(3) ? null : Convert.ToBase64String((byte[])reader[3]),
+            rating = reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
+            price = reader.IsDBNull(5) ? 0.0 : reader.GetDouble(5),
+            isTop = reader.IsDBNull(6) ? false : reader.GetInt32(6) == 1
+        };
+        products.Add(product);
+    }
+    return Results.Json(products);
+});
+
+
+app.MapGet("/homepage", () =>
+{
+    string productsDbPath = "databases/products.db";
+    using var connection = new SqliteConnection($"Data Source={productsDbPath}");
+    connection.Open();
+
+    // Get top selling products (isTop = 1)
+    var productCommand = connection.CreateCommand();
+    productCommand.CommandText = @"
+        SELECT id, name, description, image, rating, price, isTop 
+        FROM products 
+        WHERE isTop = 1
+        ORDER BY name ASC";
+    var products = new List<object>();
+    using (var reader = productCommand.ExecuteReader())
+    {
+        while (reader.Read())
+        {
+            var product = new
+            {
+                id = reader.GetInt32(0),
+                name = reader.GetString(1),
+                description = reader.IsDBNull(2) ? null : reader.GetString(2),
+                image = reader.IsDBNull(3) ? null : Convert.ToBase64String((byte[])reader[3]),
+                rating = reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
+                price = reader.IsDBNull(5) ? 0.0 : reader.GetDouble(5),
+                isTop = reader.IsDBNull(6) ? false : reader.GetInt32(6) == 1
+            };
+            products.Add(product);
+        }
+    }
+
+    // Get distinct categories with the image of the first product in each category
+    var categoryDisplayList = new List<object>();
+    var distinctCmd = connection.CreateCommand();
+    distinctCmd.CommandText = "SELECT DISTINCT category FROM products ORDER BY category ASC";
+    using (var reader = distinctCmd.ExecuteReader())
+    {
+        while (reader.Read())
+        {
+            if (!reader.IsDBNull(0))
+            {
+                var categoryName = reader.GetString(0);
+                var imageCmd = connection.CreateCommand();
+                imageCmd.CommandText = "SELECT image FROM products WHERE category = @cat AND image IS NOT NULL ORDER BY name ASC LIMIT 1";
+                imageCmd.Parameters.AddWithValue("@cat", categoryName);
+                object imageObj = imageCmd.ExecuteScalar();
+                string? imageBase64 = (imageObj != null && imageObj != DBNull.Value)
+                    ? Convert.ToBase64String((byte[])imageObj)
+                    : null;
+                categoryDisplayList.Add(new { category = categoryName, image = imageBase64 });
+            }
+        }
+    }
+
+    return Results.Json(new { products, categories = categoryDisplayList });
+});
+
+app.MapGet("/categories", () =>
+{
+    string productsDbPath = "databases/products.db";
+    using var connection = new SqliteConnection($"Data Source={productsDbPath}");
+    connection.Open();
+
+    var distinctCmd = connection.CreateCommand();
+    distinctCmd.CommandText = "SELECT DISTINCT category FROM products ORDER BY category ASC";
+    var categories = new List<object>();
+    
+    using (var reader = distinctCmd.ExecuteReader())
+    {
+        while (reader.Read())
+        {
+            if (!reader.IsDBNull(0))
+            {
+                string cat = reader.GetString(0);
+                // Get the image of the first product in this category (if exists)
+                var imageCmd = connection.CreateCommand();
+                imageCmd.CommandText = "SELECT image FROM products WHERE category = @cat AND image IS NOT NULL ORDER BY name ASC LIMIT 1";
+                imageCmd.Parameters.AddWithValue("@cat", cat);
+                object imageObj = imageCmd.ExecuteScalar();
+                string? imageBase64 = (imageObj != null && imageObj != DBNull.Value)
+                    ? Convert.ToBase64String((byte[])imageObj)
+                    : null;
+                categories.Add(new { category = cat, image = imageBase64 });
+            }
+        }
+    }
+    
+    return Results.Json(categories);
+});
+
+
+
 app.Run();

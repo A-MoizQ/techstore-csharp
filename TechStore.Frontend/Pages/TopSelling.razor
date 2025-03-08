@@ -1,0 +1,65 @@
+@page "/topselling"
+@using System.Net.Http.Json
+@inject HttpClient Http
+
+<h3>Top Selling Products</h3>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <p style="color:red">@errorMessage</p>
+}
+else if (products == null)
+{
+    <p>Loading products...</p>
+}
+else if (products.Count == 0)
+{
+    <p>No top selling products found.</p>
+}
+else
+{
+    <ul>
+        @foreach (var product in products)
+        {
+            <li style="margin-bottom:20px;">
+                <h4>@product.name</h4>
+                <p>@product.description</p>
+                <p>Rating: @product.rating | Price: @product.price</p>
+                <p>Top Product: @(product.isTop ? "Yes" : "No")</p>
+                @if (!string.IsNullOrEmpty(product.image))
+                {
+                    <img src="data:image/jpeg;base64,@product.image" alt="@product.name" style="max-width:200px" />
+                }
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    private List<Product> products = new();
+    private string errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            products = await Http.GetFromJsonAsync<List<Product>>("topselling") ?? new List<Product>();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    public class Product
+    {
+        public int id { get; set; }
+        public string name { get; set; } = string.Empty;
+        public string? description { get; set; }
+        public string? category { get; set; }
+        public string? image { get; set; } // Base64 string
+        public int rating { get; set; }
+        public double price { get; set; }
+        public bool isTop { get; set; }
+    }
+}
