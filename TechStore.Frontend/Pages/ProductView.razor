@@ -2,29 +2,54 @@
 @using System.Net.Http.Json
 @inject HttpClient Http
 
-<h3>Product Details</h3>
 
-@if (!string.IsNullOrEmpty(errorMessage))
-{
-    <p style="color:red">@errorMessage</p>
-}
-else if (product == null)
-{
-    <p>Loading product...</p>
-}
-else
-{
-    <h4>@product.name</h4>
-    <p>@product.description</p>
-    <p>@product.category</p>
-    <p>Rating: @product.rating</p>
-    <p>Price: @product.price</p>
-    <p>Top Product: @(product.isTop ? "Yes" : "No")</p>
-    @if (!string.IsNullOrEmpty(product.image))
+<NavBar />
+
+<div class="product-container">
+    @if (!string.IsNullOrEmpty(errorMessage))
     {
-        <img src="data:image/jpeg;base64,@product.image" alt="@product.name" style="max-width:400px" />
+        <p class="error-message">@errorMessage</p>
     }
-}
+    else if (product == null)
+    {
+        <p class="loading-message">Loading product...</p>
+    }
+    else
+    {
+        <div class="product-card">
+            <div class="product-image">
+                @if (!string.IsNullOrEmpty(product.image))
+                {
+                    <img src="data:image/jpeg;base64,@product.image" alt="@product.name" />
+                }
+                else
+                {
+                    <div class="placeholder">Image</div>
+                }
+            </div>
+
+            <div class="product-details">
+                <h2>@product.name</h2>
+                <div class="rating">
+                    @for (int i = 1; i <= 5; i++)
+                    {
+                        if (i <= product.rating)
+                        {
+                            <span class="star full">★</span>
+                        }
+                        else
+                        {
+                            <span class="star empty">☆</span>
+                        }
+                    }
+                </div>
+                <p class="price">@product.price Pkr</p>
+                <p class="description">@product.description</p>
+                <button class="add-to-cart">Add to cart</button>
+            </div>
+        </div>
+    }
+</div>
 
 @code {
     [Parameter]

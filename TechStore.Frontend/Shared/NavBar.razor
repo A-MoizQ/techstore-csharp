@@ -1,0 +1,22 @@
+@namespace TechStore.Frontend.Shared
+<!-- Shared/NavBar.razor -->
+<nav class="navbar">
+    <div class="nav-left">
+        <h1 class="logo">Tech Store</h1>
+    </div>
+    <div class="nav-center">
+        <input type="text" placeholder="Search..." class="search-bar" />
+        <button class="search-button">🔍</button>
+    </div>
+    <div class="nav-right">
+        <a href="/home" class="nav-link">Home</a>
+        <a href="/topselling" class="nav-link">Top Selling</a>
+        <a href="/categories" class="nav-link">categories</a>
+        <a href="/loginSignup" class="nav-link">Login/Logout</a>
+        <div class="cart-icon">🛒</div>
+    </div>
+</nav>
+
+@code {
+    // You can add logic here if needed (e.g., dynamic username, cart count)
+}

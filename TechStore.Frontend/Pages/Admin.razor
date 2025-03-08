@@ -2,34 +2,38 @@
 @inject HttpClient Http
 @using Microsoft.AspNetCore.Components.Forms
 
-<h3>Add Product</h3>
+<NavBar />
 
-<div>
-    <label>Name:</label>
-    <input @bind="Name" placeholder="Product Name" />
+<h3 class="admin-title">Add Product</h3>
 
-    <label>Description:</label>
-    <textarea @bind="Description" placeholder="Product Description"></textarea>
+<div class="admin-container">
+    <div class="admin-form">
+        <label>Name:</label>
+        <input @bind="Name" placeholder="Product Name" />
 
-    <label>Category:</label>
-    <input @bind="Category" placeholder="Product Category" />
+        <label>Description:</label>
+        <textarea @bind="Description" placeholder="Product Description"></textarea>
 
-    <label>Rating (1-5):</label>
-    <input type="number" @bind="Rating" min="1" max="5" />
+        <label>Category:</label>
+        <input @bind="Category" placeholder="Product Category" />
 
-    <label>Price:</label>
-    <input type="number" @bind="Price" step="0.01" />
+        <label>Rating (1-5):</label>
+        <input type="number" @bind="Rating" min="1" max="5" />
 
-    <label>Top Product:</label>
-    <input type="checkbox" @bind="IsTop" />
+        <label>Price:</label>
+        <input type="number" @bind="Price" step="0.01" />
 
-    <label>Image:</label>
-    <InputFile OnChange="HandleImageUpload" />
+        <label>Top Product:</label>
+        <input type="checkbox" @bind="IsTop" />
 
-    <button @onclick="SubmitProduct">Add Product</button>
+        <label>Image:</label>
+        <InputFile OnChange="HandleImageUpload" />
+
+        <button @onclick="SubmitProduct">Add Product</button>
+    </div>
 </div>
 
-<p>@Message</p>
+<p class="admin-message">@Message</p>
 
 @code {
     private string Name { get; set; } = string.Empty;

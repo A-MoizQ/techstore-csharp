@@ -2,26 +2,29 @@
 @using System.Net.Http.Json
 @inject HttpClient Http
 
-<h3>Categories</h3>
+
+<NavBar />
+
+<h3 class="page-title">Categories</h3>
 
 @if (!string.IsNullOrEmpty(errorMessage))
 {
-    <p style="color:red">@errorMessage</p>
+    <p class="error">@errorMessage</p>
 }
 else if (categories == null || categories.Count == 0)
 {
-    <p>Loading categories...</p>
+    <p class="loading">Loading categories...</p>
 }
 else
 {
-    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+    <div class="category-container">
         @foreach (var cat in categories)
         {
-            <div style="min-width: 150px; border: 1px solid #ccc; padding: 10px; text-align: center;">
-                <h5>@cat.category</h5>
+            <div class="category-card">
+                <h5 class="category-title">@cat.category</h5>
                 @if (!string.IsNullOrEmpty(cat.image))
                 {
-                    <img src="data:image/jpeg;base64,@cat.image" alt="@cat.category" style="width:100%;" />
+                    <img src="data:image/jpeg;base64,@cat.image" alt="@cat.category" class="category-image" />
                 }
             </div>
         }
