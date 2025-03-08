@@ -36,6 +36,27 @@ using (var connection = new SqliteConnection($"Data Source={dbPath}"))
     command.ExecuteNonQuery();
 }
 
+dbPath = "databases/products.db";
+
+using (var connection = new SqliteConnection($"Data Source={dbPath}"))
+{
+    connection.Open();
+    var command = connection.CreateCommand();
+    command.CommandText = @"
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL, -- equivalent to varchar(128)
+            description TEXT,   -- equivalent to varchar(256)
+            image BLOB,
+            rating INTEGER,     -- int2 can be stored as INTEGER
+            price REAL,         -- REAL used for currency values
+            isTop INTEGER       -- BOOLEAN simulated as INTEGER (0 = false, 1 = true)
+        );
+    ";
+    command.ExecuteNonQuery();
+}
+
+
 app.MapPost("/signup", async (HttpContext context) =>
 {
     var form = await context.Request.ReadFormAsync();
