@@ -1,0 +1,83 @@
+@page "/admin"
+@inject HttpClient Http
+@using Microsoft.AspNetCore.Components.Forms
+
+<h3>Add Product</h3>
+
+<div>
+    <label>Name:</label>
+    <input @bind="Name" placeholder="Product Name" />
+
+    <label>Description:</label>
+    <textarea @bind="Description" placeholder="Product Description"></textarea>
+
+    <label>Category:</label>
+    <input @bind="Category" placeholder="Product Category" />
+
+    <label>Rating (1-5):</label>
+    <input type="number" @bind="Rating" min="1" max="5" />
+
+    <label>Price:</label>
+    <input type="number" @bind="Price" step="0.01" />
+
+    <label>Top Product:</label>
+    <input type="checkbox" @bind="IsTop" />
+
+    <label>Image:</label>
+    <InputFile OnChange="HandleImageUpload" />
+
+    <button @onclick="SubmitProduct">Add Product</button>
+</div>
+
+<p>@Message</p>
+
+@code {
+    private string Name { get; set; } = string.Empty;
+    private string Description { get; set; } = string.Empty;
+    private string Category { get; set; } = string.Empty;
+    private int Rating { get; set; } = 1;
+    private double Price { get; set; } = 0.0;
+    private bool IsTop { get; set; } = false;
+    private string Message { get; set; } = string.Empty;
+    private IBrowserFile? SelectedImage { get; set; }
+
+    private void HandleImageUpload(InputFileChangeEventArgs e)
+    {
+        if (e.FileCount > 0)
+        {
+            SelectedImage = e.File;
+        }
+    }
+
+    private async Task SubmitProduct()
+    {
+        if (string.IsNullOrWhiteSpace(Name) || Price <= 0)
+        {
+            Message = "Product name and price are required!";
+            return;
+        }
+
+        var formData = new MultipartFormDataContent
+        {
+            { new StringContent(Name), "name" },
+            { new StringContent(Description), "description" },
+            { new StringContent(Category), "category" },
+            { new StringContent(Rating.ToString()), "rating" },
+            { new StringContent(Price.ToString()), "price" },
+            { new StringContent(IsTop ? "1" : "0"), "isTop" }
+        };
+
+        if (SelectedImage != null)
+        {
+            var stream = SelectedImage.OpenReadStream(10 * 1024 * 1024);
+            var imageContent = new StreamContent(stream);
+            imageContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(SelectedImage.ContentType);
+            formData.Add(imageContent, "image", SelectedImage.Name);
+        }
+
+        var response = await Http.PostAsync("/admin", formData);
+        Message = response.IsSuccessStatusCode 
+            ? "Product added successfully!" 
+            : await response.Content.ReadAsStringAsync();
+    }
+}

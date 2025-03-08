@@ -14,7 +14,6 @@ builder.Services.AddCors(options =>
     });
 });
 
-
 builder.Services.AddControllers();
 var app = builder.Build();
 
@@ -22,13 +21,11 @@ app.UseCors("AllowFrontend");
 app.UseAuthorization();
 app.MapControllers();
 
-// Your custom endpoints (or use Controllers)
-// Example: Use minimal APIs for login/signup:
-string dbPath = "databases/users.db";
+// Set up users database
+string usersDbPath = "databases/users.db";
 Directory.CreateDirectory("databases");
 
-// Create or open SQLite database and table...
-using (var connection = new SqliteConnection($"Data Source={dbPath}"))
+using (var connection = new SqliteConnection($"Data Source={usersDbPath}"))
 {
     connection.Open();
     var command = connection.CreateCommand();
@@ -36,37 +33,38 @@ using (var connection = new SqliteConnection($"Data Source={dbPath}"))
     command.ExecuteNonQuery();
 }
 
-dbPath = "databases/products.db";
+// Set up products database
+string productsDbPath = "databases/products.db";
 
-using (var connection = new SqliteConnection($"Data Source={dbPath}"))
+using (var connection = new SqliteConnection($"Data Source={productsDbPath}"))
 {
     connection.Open();
     var command = connection.CreateCommand();
     command.CommandText = @"
         CREATE TABLE IF NOT EXISTS products (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL, -- equivalent to varchar(128)
-            description TEXT,   -- equivalent to varchar(256)
+            name TEXT NOT NULL, 
+            description TEXT,
+            category TEXT NOT NULL,
             image BLOB,
-            rating INTEGER,     -- int2 can be stored as INTEGER
-            price REAL,         -- REAL used for currency values
-            isTop INTEGER       -- BOOLEAN simulated as INTEGER (0 = false, 1 = true)
+            rating INTEGER NOT NULL,
+            price REAL,
+            isTop INTEGER
         );
     ";
     command.ExecuteNonQuery();
 }
 
-
 app.MapPost("/signup", async (HttpContext context) =>
 {
     var form = await context.Request.ReadFormAsync();
     string uname = form["uname"].ToString().ToLower();
-    string password = form["password"];
+    string password = form["password"].ToString();
 
     if (!Regex.IsMatch(password, @"^(?=.*[a-z])(?=.*[A-Z])(?=.*[_#@$]).{8,}$"))
         return Results.BadRequest("Invalid password format");
 
-    using (var connection = new SqliteConnection($"Data Source={dbPath}"))
+    using (var connection = new SqliteConnection($"Data Source={usersDbPath}"))
     {
         connection.Open();
         var checkCmd = connection.CreateCommand();
@@ -88,9 +86,9 @@ app.MapPost("/login", async (HttpContext context) =>
 {
     var form = await context.Request.ReadFormAsync();
     string uname = form["uname"].ToString().ToLower();
-    string password = form["password"];
+    string password = form["password"].ToString();
 
-    using (var connection = new SqliteConnection($"Data Source={dbPath}"))
+    using (var connection = new SqliteConnection($"Data Source={usersDbPath}"))
     {
         connection.Open();
         var command = connection.CreateCommand();
@@ -101,6 +99,80 @@ app.MapPost("/login", async (HttpContext context) =>
             return Results.Ok("Login successful");
     }
     return Results.BadRequest("Invalid credentials");
+});
+
+app.MapPost("/admin", async (HttpContext context) =>
+{
+    var form = await context.Request.ReadFormAsync();
+
+    string name = form["name"].ToString();
+    string description = form["description"].ToString();
+    string category = form["category"].ToString();
+    int.TryParse(form["rating"].ToString(), out int rating);
+    double.TryParse(form["price"].ToString(), out double price);
+    int.TryParse(form["isTop"].ToString(), out int isTop); // 0 = false, 1 = true
+
+    // Handling image file
+    byte[]? imageBytes = null;
+    if (form.Files.Count > 0)
+    {
+        var imageFile = form.Files["image"];
+        if (imageFile != null)
+        {
+            using var ms = new MemoryStream();
+            await imageFile.CopyToAsync(ms);
+            imageBytes = ms.ToArray();
+        }
+    }
+
+    using (var connection = new SqliteConnection($"Data Source={productsDbPath}"))
+    {
+        connection.Open();
+        var command = connection.CreateCommand();
+        command.CommandText = @"
+            INSERT INTO products (name, description, category, image, rating, price, isTop) 
+            VALUES (@name, @description, @category, @image, @rating, @price, @isTop)";
+        command.Parameters.AddWithValue("@name", name);
+        command.Parameters.AddWithValue("@description", description);
+        command.Parameters.AddWithValue("@category", category);
+        command.Parameters.AddWithValue("@image", imageBytes == null ? DBNull.Value : (object)imageBytes);
+        command.Parameters.AddWithValue("@rating", rating);
+        command.Parameters.AddWithValue("@price", price);
+        command.Parameters.AddWithValue("@isTop", isTop);
+
+        command.ExecuteNonQuery();
+    }
+
+    return Results.Ok("Product added successfully.");
+});
+
+app.MapGet("/product/{id:int}", async (int id) =>
+{
+    using var connection = new SqliteConnection($"Data Source={productsDbPath}");
+    connection.Open();
+    var command = connection.CreateCommand();
+    command.CommandText = @"
+        SELECT id, name, description, image, rating, price, isTop 
+        FROM products 
+        WHERE id = @id";
+    command.Parameters.AddWithValue("@id", id);
+    
+    using var reader = command.ExecuteReader();
+    if (reader.Read())
+    {
+        var product = new
+        {
+            id = reader.GetInt32(0),
+            name = reader.GetString(1),
+            description = reader.IsDBNull(2) ? null : reader.GetString(2),
+            image = reader.IsDBNull(3) ? null : Convert.ToBase64String((byte[])reader[3]),
+            rating = reader.IsDBNull(4) ? 0 : reader.GetInt32(4),
+            price = reader.IsDBNull(5) ? 0.0 : reader.GetDouble(5),
+            isTop = reader.IsDBNull(6) ? false : reader.GetInt32(6) == 1
+        };
+        return Results.Json(product);
+    }
+    return Results.NotFound("Product not found.");
 });
 
 app.Run();

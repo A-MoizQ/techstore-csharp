@@ -1,0 +1,59 @@
+@page "/product/{id:int}"
+@using System.Net.Http.Json
+@inject HttpClient Http
+
+<h3>Product Details</h3>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <p style="color:red">@errorMessage</p>
+}
+else if (product == null)
+{
+    <p>Loading product...</p>
+}
+else
+{
+    <h4>@product.name</h4>
+    <p>@product.description</p>
+    <p>@product.category</p>
+    <p>Rating: @product.rating</p>
+    <p>Price: @product.price</p>
+    <p>Top Product: @(product.isTop ? "Yes" : "No")</p>
+    @if (!string.IsNullOrEmpty(product.image))
+    {
+        <img src="data:image/jpeg;base64,@product.image" alt="@product.name" style="max-width:400px" />
+    }
+}
+
+@code {
+    [Parameter]
+    public int id { get; set; }
+
+    private Product? product;
+    private string errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            product = await Http.GetFromJsonAsync<Product>($"product/{id}");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    public class Product
+    {
+        public int id { get; set; }
+        public string name { get; set; } = string.Empty;
+        public string? description { get; set; }
+        public string? category { get; set; }
+        public string? image { get; set; }
+        public int rating { get; set; }
+        public double price { get; set; }
+        public bool isTop { get; set; }
+    }
+}
