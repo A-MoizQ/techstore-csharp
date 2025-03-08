@@ -8,11 +8,12 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("https://localhost:5000") // Frontend URL (adjust if needed)
+        policy.WithOrigins("http://localhost:5014") // Updated to match the frontend
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
 });
+
 
 builder.Services.AddControllers();
 var app = builder.Build();
