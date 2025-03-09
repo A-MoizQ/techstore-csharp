@@ -1,42 +1,62 @@
 @page "/categories"
 @using System.Net.Http.Json
 @inject HttpClient Http
-
+@inject NavigationManager Navigation
+@inject CustomAuthStateProvider AuthStateProvider
 
 <NavBar />
 
-<h3 class="page-title">Categories</h3>
-
-@if (!string.IsNullOrEmpty(errorMessage))
+@if (!isAuthenticated)
 {
-    <p class="error">@errorMessage</p>
-}
-else if (categories == null || categories.Count == 0)
-{
-    <p class="loading">Loading categories...</p>
+    Navigation.NavigateTo("/loginSignup", forceLoad: true);
 }
 else
 {
-    <div class="category-container">
-        @foreach (var cat in categories)
-        {
-            <div class="category-card">
-                <h5 class="category-title">@cat.category</h5>
-                @if (!string.IsNullOrEmpty(cat.image))
-                {
-                    <img src="data:image/jpeg;base64,@cat.image" alt="@cat.category" class="category-image" />
-                }
-            </div>
-        }
-    </div>
+    <h3 class="page-title">Categories</h3>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <p class="error">@errorMessage</p>
+    }
+    else if (categories == null || categories.Count == 0)
+    {
+        <p class="loading">Loading categories...</p>
+    }
+    else
+    {
+        <div class="category-container">
+            @foreach (var cat in categories)
+            {
+                <div class="category-card">
+                    <h5 class="category-title">@cat.category</h5>
+                    @if (!string.IsNullOrEmpty(cat.image))
+                    {
+                        <img src="data:image/jpeg;base64,@cat.image" alt="@cat.category" class="category-image" />
+                    }
+                </div>
+            }
+        </div>
+    }
 }
 
 @code {
     private List<CategoryDisplay> categories = new();
     private string errorMessage = string.Empty;
+    private bool isAuthenticated = false;
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        isAuthenticated = user.Identity?.IsAuthenticated ?? false;
+
+        if (!isAuthenticated)
+        {
+            Navigation.NavigateTo("/loginSignup", forceLoad: true);
+            return;
+        }
+
         try
         {
             categories = await Http.GetFromJsonAsync<List<CategoryDisplay>>("categories") 

@@ -1,5 +1,8 @@
 @namespace TechStore.Frontend.Shared
-<!-- Shared/NavBar.razor -->
+@inject NavigationManager Navigation
+@inject CustomAuthStateProvider AuthStateProvider
+@using Microsoft.AspNetCore.Components.Authorization
+
 <nav class="navbar">
     <div class="nav-left">
         <h1 class="logo">Tech Store</h1>
@@ -11,12 +14,38 @@
     <div class="nav-right">
         <a href="/home" class="nav-link">Home</a>
         <a href="/topselling" class="nav-link">Top Selling</a>
-        <a href="/categories" class="nav-link">categories</a>
-        <a href="/loginSignup" class="nav-link">Login/Logout</a>
+        <a href="/categories" class="nav-link">Categories</a>
+        @if (isAuthenticated)
+        {
+            @if (isSuperuser)
+            {
+                <a href="/admin" class="nav-link">Admin</a>
+            }
+            <a href="#" class="nav-link" @onclick="Logout">Logout</a>
+        }
+        else
+        {
+            <a href="/loginSignup" class="nav-link">Login</a>
+        }
         <div class="cart-icon">🛒</div>
     </div>
 </nav>
 
 @code {
-    // You can add logic here if needed (e.g., dynamic username, cart count)
+    private bool isAuthenticated = false;
+    private bool isSuperuser = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        isAuthenticated = user.Identity?.IsAuthenticated ?? false;
+        isSuperuser = user.IsInRole("superuser");
+    }
+
+    private void Logout()
+    {
+        AuthStateProvider.MarkUserAsLoggedOut();
+        Navigation.NavigateTo("/loginSignup", forceLoad: true);
+    }
 }

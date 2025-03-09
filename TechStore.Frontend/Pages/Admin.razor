@@ -1,5 +1,7 @@
 @page "/admin"
 @inject HttpClient Http
+@inject NavigationManager Navigation
+@inject CustomAuthStateProvider AuthStateProvider
 @using Microsoft.AspNetCore.Components.Forms
 
 <NavBar />
@@ -44,6 +46,20 @@
     private bool IsTop { get; set; } = false;
     private string Message { get; set; } = string.Empty;
     private IBrowserFile? SelectedImage { get; set; }
+    private bool IsSuperuser { get; set; } = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        IsSuperuser = user.IsInRole("superuser");
+
+        if (!IsSuperuser)
+        {
+            Navigation.NavigateTo("/home", forceLoad: true);
+        }
+    }
 
     private void HandleImageUpload(InputFileChangeEventArgs e)
     {
@@ -55,6 +71,12 @@
 
     private async Task SubmitProduct()
     {
+        if (!IsSuperuser)
+        {
+            Message = "Unauthorized action.";
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(Name) || Price <= 0)
         {
             Message = "Product name and price are required!";

@@ -55,11 +55,15 @@ using (var connection = new SqliteConnection($"Data Source={productsDbPath}"))
     command.ExecuteNonQuery();
 }
 
-app.MapPost("/signup", async (HttpContext context) =>
+app.MapPost("/api/auth/signup", async (HttpContext context) =>
 {
-    var form = await context.Request.ReadFormAsync();
-    string uname = form["uname"].ToString().ToLower();
-    string password = form["password"].ToString();
+    var authRequest = await context.Request.ReadFromJsonAsync<AuthRequest>();
+    if (authRequest is null)
+    {
+        return Results.BadRequest("Invalid payload.");
+    }
+    string uname = authRequest.Username.ToLower();
+    string password = authRequest.Password;
 
     if (!Regex.IsMatch(password, @"^(?=.*[a-z])(?=.*[A-Z])(?=.*[_#@$]).{8,}$"))
         return Results.BadRequest("Invalid password format");
@@ -82,11 +86,16 @@ app.MapPost("/signup", async (HttpContext context) =>
     return Results.Ok("Signup successful");
 });
 
-app.MapPost("/login", async (HttpContext context) =>
+// Login Endpoint
+app.MapPost("/api/auth/login", async (HttpContext context) =>
 {
-    var form = await context.Request.ReadFormAsync();
-    string uname = form["uname"].ToString().ToLower();
-    string password = form["password"].ToString();
+    var authRequest = await context.Request.ReadFromJsonAsync<AuthRequest>();
+    if (authRequest is null)
+    {
+        return Results.BadRequest("Invalid payload.");
+    }
+    string uname = authRequest.Username.ToLower();
+    string password = authRequest.Password;
 
     using (var connection = new SqliteConnection($"Data Source={usersDbPath}"))
     {
@@ -301,3 +310,5 @@ app.MapGet("/categories", () =>
 
 
 app.Run();
+
+public record AuthRequest(string Username, string Password);

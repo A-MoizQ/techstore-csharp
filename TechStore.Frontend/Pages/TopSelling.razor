@@ -1,53 +1,73 @@
 @page "/topselling"
 @using System.Net.Http.Json
 @inject HttpClient Http
-
+@inject NavigationManager Navigation
+@inject CustomAuthStateProvider AuthStateProvider
 
 <NavBar />
 
-@if (!string.IsNullOrEmpty(errorMessage))
+@if (!isAuthenticated)
 {
-    <p class="error">@errorMessage</p>
-}
-else if (products == null)
-{
-    <p class="loading">Loading products...</p>
-}
-else if (products.Count == 0)
-{
-    <p class="no-products">No top-selling products found.</p>
+    Navigation.NavigateTo("/loginSignup", forceLoad: true);
 }
 else
 {
-    <div class="product-container">
-        <button class="scroll-btn left" @onclick="ScrollLeft">⬅</button>
-        <div class="product-list">
-            @foreach (var product in products)
-            {
-                <div class="product-card">
-                    @if (!string.IsNullOrEmpty(product.image))
-                    {
-                        <img src="data:image/jpeg;base64,@product.image" alt="@product.name" class="product-image" />
-                    }
-                    <h4 class="product-title">@product.name</h4>
-                    <p class="product-description">@product.description</p>
-                    <p class="product-price">@($"{product.price} PKR")</p>
-                    <p class="product-rating">@RenderStars(product.rating)</p>
-                    <button class="add-to-cart">Add to Cart</button>
-                </div>
-            }
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <p class="error">@errorMessage</p>
+    }
+    else if (products == null)
+    {
+        <p class="loading">Loading products...</p>
+    }
+    else if (products.Count == 0)
+    {
+        <p class="no-products">No top-selling products found.</p>
+    }
+    else
+    {
+        <div class="product-container">
+            <button class="scroll-btn left" @onclick="ScrollLeft">⬅</button>
+            <div class="product-list">
+                @foreach (var product in products)
+                {
+                    <div class="product-card">
+                        @if (!string.IsNullOrEmpty(product.image))
+                        {
+                            <img src="data:image/jpeg;base64,@product.image" alt="@product.name" class="product-image" />
+                        }
+                        <h4 class="product-title">@product.name</h4>
+                        <p class="product-description">@product.description</p>
+                        <p class="product-price">@($"{product.price} PKR")</p>
+                        <p class="product-rating">@RenderStars(product.rating)</p>
+                        <button class="add-to-cart">Add to Cart</button>
+                    </div>
+                }
+            </div>
+            <button class="scroll-btn right" @onclick="ScrollRight">➡</button>
         </div>
-        <button class="scroll-btn right" @onclick="ScrollRight">➡</button>
-    </div>
+    }
 }
 
 @code {
     private List<Product> products = new();
     private string errorMessage = string.Empty;
+    private bool isAuthenticated = false;
     private int currentIndex = 0;
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        isAuthenticated = user.Identity?.IsAuthenticated ?? false;
+
+        if (!isAuthenticated)
+        {
+            Navigation.NavigateTo("/loginSignup", forceLoad: true);
+            return;
+        }
+
         try
         {
             products = await Http.GetFromJsonAsync<List<Product>>("topselling") ?? new List<Product>();
