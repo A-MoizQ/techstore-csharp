@@ -53,12 +53,33 @@
     </div>
 </div>
 
-<p class="message">@Message</p>
+<!-- Display User Messages -->
+@if (!string.IsNullOrEmpty(Message))
+{
+    <p class="message @(IsSuccess ? "success-message" : "error-message")">@Message</p>
+}
+
+<style>
+    .success-message {
+        color: green;
+        font-weight: bold;
+        text-align: center;
+        margin-top: 10px;
+    }
+    
+    .error-message {
+        color: red;
+        font-weight: bold;
+        text-align: center;
+        margin-top: 10px;
+    }
+</style>
 
 @code {
     private string Username { get; set; } = string.Empty;
     private string Password { get; set; } = string.Empty;
     private string Message { get; set; } = string.Empty;
+    private bool IsSuccess { get; set; } = false;
     private bool isSignup { get; set; } = false;
 
     private void ShowSignup() => isSignup = true;
@@ -66,34 +87,57 @@
 
     private async Task Login()
     {
+        // Validate Empty Inputs
+        if (string.IsNullOrWhiteSpace(Username) || string.IsNullOrWhiteSpace(Password))
+        {
+            Message = "Username and password are required!";
+            IsSuccess = false;
+            return;
+        }
+
         var loginData = new { Username, Password };
         var response = await Http.PostAsJsonAsync("api/auth/login", loginData);
+        var responseText = await response.Content.ReadAsStringAsync();
 
         if (response.IsSuccessStatusCode)
         {
-            Message = "Login successful!";
+            Message = "Login successful! Redirecting...";
+            IsSuccess = true;
             AuthStateProvider.MarkUserAsAuthenticated(Username);
+            await Task.Delay(1000); // Small delay for UX
             Navigation.NavigateTo("/home");
         }
         else
         {
-            Message = await response.Content.ReadAsStringAsync();
+            Message = responseText;
+            IsSuccess = false;
         }
     }
 
     private async Task SignupUser()
     {
+        // Validate Empty Inputs
+        if (string.IsNullOrWhiteSpace(Username) || string.IsNullOrWhiteSpace(Password))
+        {
+            Message = "Username and password are required!";
+            IsSuccess = false;
+            return;
+        }
+
         var signupData = new { Username, Password };
         var response = await Http.PostAsJsonAsync("api/auth/signup", signupData);
+        var responseText = await response.Content.ReadAsStringAsync();
 
         if (response.IsSuccessStatusCode)
         {
             Message = "Signup successful! Please log in.";
+            IsSuccess = true;
             ShowLogin();
         }
         else
         {
-            Message = await response.Content.ReadAsStringAsync();
+            Message = responseText;
+            IsSuccess = false;
         }
     }
 }
