@@ -1,5 +1,7 @@
 using Microsoft.Data.Sqlite;
 using System.Text.RegularExpressions;
+using System.Text.Json;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -54,6 +56,25 @@ using (var connection = new SqliteConnection($"Data Source={productsDbPath}"))
     ";
     command.ExecuteNonQuery();
 }
+
+// Set up cart database table 
+
+string cartDbPath = "databases/cart.db";
+using (var connection = new SqliteConnection($"Data Source={cartDbPath}"))
+{
+    connection.Open();
+    var command = connection.CreateCommand();
+    command.CommandText = @"
+        CREATE TABLE IF NOT EXISTS cart (
+            cart_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            uname TEXT NOT NULL,
+            product_id INTEGER NOT NULL,
+            quantity INTEGER NOT NULL
+        );
+    ";
+    command.ExecuteNonQuery();
+}
+
 
 app.MapPost("/api/auth/signup", async (HttpContext context) =>
 {
@@ -184,7 +205,7 @@ app.MapGet("/product/{id:int}", async (int id) =>
     return Results.NotFound("Product not found.");
 });
 
-app.MapGet("/topselling", () =>
+app.MapGet("/topselling",async () =>
 {
     string productsDbPath = "databases/products.db";
     using var connection = new SqliteConnection($"Data Source={productsDbPath}");
@@ -303,11 +324,160 @@ app.MapGet("/categories", () =>
             }
         }
     }
-    
     return Results.Json(categories);
 });
 
 
+// Add to cart endpoint
+app.MapPost("/cart", async (HttpContext context) =>
+{
+    var jsonDoc = await JsonDocument.ParseAsync(context.Request.Body);
+    var root = jsonDoc.RootElement;
+
+    if (!root.TryGetProperty("uname", out var unameProp) ||
+        !root.TryGetProperty("productId", out var productIdProp) ||
+        !root.TryGetProperty("quantity", out var quantityProp))
+    {
+        return Results.BadRequest("Missing one or more required fields.");
+    }
+
+    string uname = unameProp.GetString()?.ToLower() ?? "";
+    int productId = productIdProp.GetInt32();
+    int quantity = quantityProp.GetInt32();
+
+    // Ensure the user exists before adding to cart
+    using var userConnection = new SqliteConnection($"Data Source={usersDbPath}");
+    userConnection.Open();
+    var userCheckCmd = userConnection.CreateCommand();
+    userCheckCmd.CommandText = "SELECT COUNT(*) FROM users WHERE uname = @uname";
+    userCheckCmd.Parameters.AddWithValue("@uname", uname);
+    long userExists = (long)userCheckCmd.ExecuteScalar();
+
+    if (userExists == 0)
+    {
+        return Results.BadRequest("User does not exist.");
+    }
+
+    // Add or update item in cart
+    using var connection = new SqliteConnection($"Data Source={cartDbPath}");
+    connection.Open();
+
+    // Check if the item is already in the cart
+    var checkCmd = connection.CreateCommand();
+    checkCmd.CommandText = @"
+        SELECT quantity FROM cart
+        WHERE uname = @uname AND product_id = @product_id";
+    checkCmd.Parameters.AddWithValue("@uname", uname);
+    checkCmd.Parameters.AddWithValue("@product_id", productId);
+
+    var existingQuantityObj = checkCmd.ExecuteScalar();
+
+    if (existingQuantityObj != null)
+    {
+        // Item exists, update the quantity
+        int existingQuantity = Convert.ToInt32(existingQuantityObj);
+        int newQuantity = existingQuantity + quantity;
+
+        var updateCmd = connection.CreateCommand();
+        updateCmd.CommandText = @"
+            UPDATE cart
+            SET quantity = @newQuantity
+            WHERE uname = @uname AND product_id = @product_id";
+        updateCmd.Parameters.AddWithValue("@newQuantity", newQuantity);
+        updateCmd.Parameters.AddWithValue("@uname", uname);
+        updateCmd.Parameters.AddWithValue("@product_id", productId);
+
+        try
+        {
+            updateCmd.ExecuteNonQuery();
+            return Results.Ok("Cart item quantity updated.");
+        }
+        catch (Exception ex)
+        {
+            return Results.Problem($"Failed to update cart item: {ex.Message}");
+        }
+    }
+    else
+    {
+        // Item does not exist, insert new row
+        var insertCmd = connection.CreateCommand();
+        insertCmd.CommandText = @"
+            INSERT INTO cart (uname, product_id, quantity)
+            VALUES (@uname, @product_id, @quantity)";
+        insertCmd.Parameters.AddWithValue("@uname", uname);
+        insertCmd.Parameters.AddWithValue("@product_id", productId);
+        insertCmd.Parameters.AddWithValue("@quantity", quantity);
+
+        try
+        {
+            insertCmd.ExecuteNonQuery();
+            return Results.Ok("Item added to cart.");
+        }
+        catch (Exception ex)
+        {
+            return Results.Problem($"Failed to add item to cart: {ex.Message}");
+        }
+    }
+});
+
+
+// Get all cart items for a user by their username
+app.MapGet("/cart/{uname}", (string uname) =>
+{
+    using var connection = new SqliteConnection($"Data Source={cartDbPath}");
+    connection.Open();
+
+    // Attach the products database so we can join product details
+    var attachCmd = connection.CreateCommand();
+    attachCmd.CommandText = $"ATTACH DATABASE '{productsDbPath}' AS prod;";
+    attachCmd.ExecuteNonQuery();
+
+    // Join cart items with corresponding product details
+    var command = connection.CreateCommand();
+    command.CommandText = @"
+        SELECT 
+            c.cart_id,
+            c.product_id,
+            p.name AS product_name,
+            p.image AS product_image,
+            p.price AS product_price,
+            c.quantity
+        FROM cart c
+        JOIN prod.products p ON c.product_id = p.id
+        WHERE LOWER(c.uname) = LOWER(@uname);";
+    command.Parameters.AddWithValue("@uname", uname);
+
+    var items = new List<object>();
+    using var reader = command.ExecuteReader();
+    while (reader.Read())
+    {
+        // Read data and prepare it for frontend consumption
+        items.Add(new
+        {
+            cart_id = reader.GetInt32(0),
+            product_id = reader.GetInt32(1),
+            product_name = reader.GetString(2),
+            product_image = reader.IsDBNull(3) ? null : Convert.ToBase64String((byte[])reader[3]),
+            product_price = reader.IsDBNull(4) ? 0.0 : reader.GetDouble(4),
+            quantity = reader.GetInt32(5)
+        });
+    }
+
+    return Results.Json(items);
+});
+
+
+// clear the cart (by option or at checkout)
+app.MapDelete("/cart/clear/{uname}", (string uname) =>
+{
+    using var connection = new SqliteConnection($"Data Source={cartDbPath}");
+    connection.Open();
+    var command = connection.CreateCommand();
+    command.CommandText = "DELETE FROM cart WHERE uname = @uname";
+    command.Parameters.AddWithValue("@uname", uname.ToLower());
+    int deleted = command.ExecuteNonQuery();
+    return Results.Ok($"{deleted} item(s) removed from cart.");
+});
 
 app.Run();
 
