@@ -27,7 +27,8 @@
         {
             <a href="/loginSignup" class="nav-link">Login</a>
         }
-        <div class="cart-icon">🛒</div>
+        <div class="cart-icon" @onclick="GoToCart" title="View Cart">🛒</div>
+
     </div>
 </nav>
 
@@ -48,4 +49,10 @@
         AuthStateProvider.MarkUserAsLoggedOut();
         Navigation.NavigateTo("/loginSignup", forceLoad: true);
     }
+
+    private void GoToCart()
+    {
+        Navigation.NavigateTo("/cart");
+    }
+
 }

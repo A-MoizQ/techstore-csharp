@@ -3,7 +3,9 @@
 @inject HttpClient Http
 @inject NavigationManager NavManager
 @inject AuthenticationStateProvider AuthProvider
+@inject IJSRuntime JS
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Web
 
 <AuthorizeView>
     <Authorized>
@@ -24,38 +26,53 @@
             {
                 <div class="products-section">
                     <h4 class="section-title">Top Selling Products</h4>
-                    <div class="products-list">
-                        @foreach (var product in homepageData.products)
-                        {
-                            <div class="product-card">
-                                <h5>@product.name</h5>
-                                @if (!string.IsNullOrEmpty(product.image))
-                                {
-                                    <img src="data:image/jpeg;base64,@product.image" alt="@product.name" />
-                                }
-                                <p>@product.description</p>
-                                <p>⭐ Rating: @product.rating</p>
-                                <p>💰 Price: @product.price PKR</p>
-                            </div>
-                        }
+
+                    <div class="scroll-buttons-container">
+                        <button @onclick="() => ScrollProducts(-1)" class="scroll-btn">◀</button>
+
+                        <div class="products-list" @ref="productListRef">
+                            @foreach (var product in homepageData.products.Take(10)) // just 10 for testing
+                            {
+                                <div class="product-card">
+                                    <h5>@product.name</h5>
+                                    @if (!string.IsNullOrEmpty(product.image))
+                                    {
+                                        <img src="data:image/jpeg;base64,@product.image" alt="@product.name" />
+                                    }
+                                    <p>@product.description</p>
+                                    <p>⭐ Rating: @product.rating</p>
+                                    <p>💰 Price: @product.price PKR</p>
+                                </div>
+                            }
+                        </div>
+
+                        <button @onclick="() => ScrollProducts(1)" class="scroll-btn">▶</button>
                     </div>
                 </div>
 
                 <div class="categories-section">
                     <h4 class="section-title">Categories</h4>
-                    <div class="categories-list">
-                        @foreach (var cat in homepageData.categories)
-                        {
-                            <div class="category-card">
-                                <h5>@cat.category</h5>
-                                @if (!string.IsNullOrEmpty(cat.image))
-                                {
-                                    <img src="data:image/jpeg;base64,@cat.image" alt="@cat.category" />
-                                }
-                            </div>
-                        }
+
+                    <div class="scroll-buttons-container">
+                        <button @onclick="ScrollCategoriesLeft" class="scroll-btn">◀</button>
+
+                        <div class="categories-list" @ref="categoriesListRef">
+                            @foreach (var cat in homepageData.categories)
+                            {
+                                <div class="category-card">
+                                    <h5>@cat.category</h5>
+                                    @if (!string.IsNullOrEmpty(cat.image))
+                                    {
+                                        <img src="data:image/jpeg;base64,@cat.image" alt="@cat.category" />
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        <button @onclick="ScrollCategoriesRight" class="scroll-btn">▶</button>
                     </div>
                 </div>
+
             }
         </div>
     </Authorized>
@@ -64,6 +81,8 @@
 @code {
     private HomepageData? homepageData;
     private string errorMessage = string.Empty;
+    private ElementReference productListRef;
+    private const int scrollAmount = 300;
 
     protected override async Task OnInitializedAsync()
     {
@@ -85,6 +104,24 @@
             errorMessage = ex.Message;
         }
     }
+
+    private async Task ScrollProducts(int direction)
+    {
+        await JS.InvokeVoidAsync("scrollElementHorizontally", productListRef, direction * scrollAmount);
+    }
+
+    private ElementReference categoriesListRef;
+
+    private async Task ScrollCategoriesLeft()
+    {
+        await JS.InvokeVoidAsync("scrollElementHorizontally", categoriesListRef, -scrollAmount);
+    }
+
+    private async Task ScrollCategoriesRight()
+    {
+        await JS.InvokeVoidAsync("scrollElementHorizontally", categoriesListRef, scrollAmount);
+    }
+
 
     public class HomepageData
     {

@@ -538,8 +538,9 @@ body {
 .products-list, .categories-list {
     display: flex;
     gap: 15px;
-    overflow-x: auto;
+    overflow-x: hidden;
     padding: 10px;
+    scroll-behavior: smooth;
 }
 
 /* Product & Category Cards */
@@ -575,5 +576,91 @@ body {
     margin-top: 5px;
 }
 
+/* cart css styling */
+.cart-container {
+    display: flex;
+    background: #444;
+    color: white;
+    padding: 20px;
+}
 
+.cart-left {
+    flex: 3;
+}
 
+.cart-right {
+    flex: 1;
+    border-left: 2px solid white;
+    padding-left: 20px;
+    text-align: center;
+}
+
+.cart-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.product-image {
+    width: 100px;
+    height: 100px;
+    background: #333;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 20px;
+}
+
+.product-image img {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+.placeholder {
+    color: #aaa;
+}
+
+.product-details {
+    flex: 1;
+}
+
+.wallet-btn {
+    margin-top: 20px;
+    background: #222;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 18px;
+}
+
+/* buttons styling */
+.scroll-buttons-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.products-list {
+    display: flex;
+    overflow-x: hidden;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    width: 100%;
+}
+
+.product-card {
+    flex: 0 0 auto;
+    width: 200px;
+    margin-right: 10px;
+    border: 1px solid #ccc;
+    padding: 10px;
+    overflow: hidden;
+}
+
+.scroll-btn {
+    background-color: #aaa;
+    border: none;
+    padding: 10px;
+    font-size: 20px;
+    cursor: pointer;
+}
