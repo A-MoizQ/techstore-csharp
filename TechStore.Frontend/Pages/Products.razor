@@ -1,0 +1,135 @@
+@page "/products"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthProvider
+
+<NavBar />
+
+<h3 class="page-title">Products</h3>
+
+@if (!string.IsNullOrEmpty(errorMessage))
+{
+    <p class="error">@errorMessage</p>
+}
+else if (filteredProducts == null)
+{
+    <p class="loading">Loading products...</p>
+}
+else if (filteredProducts.Count == 0)
+{
+    <p class="no-products">No products available.</p>
+}
+else
+{
+    <nav class="category-navbar">
+        @foreach (var cat in categories)
+        {
+            <button class="category-button @(selectedCategory == cat ? "active" : "")"
+                    @onclick="() => FilterProducts(cat)">
+                @cat
+            </button>
+        }
+    </nav>
+
+    <div class="product-grid">
+        @for (int i = 0; i < filteredProducts.Count; i += 2)
+        {
+            <div class="product-row">
+                <div class="product-card">@RenderProduct(filteredProducts[i])</div>
+
+                @if (i + 1 < filteredProducts.Count)
+                {
+                    <div class="product-card">@RenderProduct(filteredProducts[i + 1])</div>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<Product> allProducts = new();
+    private List<Product> filteredProducts = new();
+    private List<string> categories = new();
+    private string? selectedCategory;
+    private string errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        if (authState.User.Identity?.IsAuthenticated != true)
+        {
+            Navigation.NavigateTo("/loginSignup", forceLoad: true);
+            return;
+        }
+
+        try
+        {
+            LoadMockProducts();
+
+            categories = allProducts
+                .Select(p => p.Category)
+                .Distinct()
+                .ToList();
+
+            filteredProducts = allProducts
+                .OrderBy(_ => Guid.NewGuid())
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private void LoadMockProducts()
+    {
+        allProducts = new List<Product>
+        {
+            new() { Name = "iPhone 14", Category = "Mobiles", Description = "Apple smartphone", Price = 299999, Rating = 5 },
+            new() { Name = "Galaxy S22", Category = "Mobiles", Description = "Samsung flagship", Price = 249999, Rating = 4 },
+            new() { Name = "MacBook Air", Category = "Laptops", Description = "Apple laptop", Price = 399999, Rating = 5 },
+            new() { Name = "Dell XPS 13", Category = "Laptops", Description = "High-end Dell laptop", Price = 349999, Rating = 4 },
+            new() { Name = "Sony WH-1000XM4", Category = "Headphones", Description = "Noise-canceling headphones", Price = 89999, Rating = 5 },
+            new() { Name = "AirPods Pro", Category = "Headphones", Description = "Apple wireless earbuds", Price = 64999, Rating = 4 },
+            new() { Name = "Canon EOS R", Category = "Cameras", Description = "Mirrorless camera", Price = 550000, Rating = 5 },
+            new() { Name = "Nikon Z6", Category = "Cameras", Description = "Nikon mirrorless camera", Price = 499000, Rating = 4 },
+            new() { Name = "Tralalero", Category = "Cameras", Description = "Nikon mirrorless camera", Price = 499000, Rating = 4 }
+        };
+    }
+
+    private void FilterProducts(string category)
+    {
+        selectedCategory = category;
+        filteredProducts = allProducts
+            .Where(p => p.Category == category)
+            .ToList();
+    }
+
+    private RenderFragment RenderProduct(Product p) => __builder =>
+    {
+        <div class="product-card-inner">
+            <div class="product-image">Image</div>
+            <div class="product-info">
+                <h4>@p.Name</h4>
+                <div class="product-rating">
+                    @for (int i = 0; i < 5; i++)
+                    {
+                        <span>@(i < p.Rating ? "⭐" : "☆")</span>
+                    }
+                </div>
+                <p>@($"{p.Price} PKR")</p>
+                <p><strong>Description:</strong><br />@p.Description</p>
+                <button class="add-to-cart-btn">Add to cart</button>
+            </div>
+        </div>;
+    };
+
+    public class Product
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public int Rating { get; set; }
+        public double Price { get; set; }
+    }
+}
