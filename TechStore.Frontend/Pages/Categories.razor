@@ -1,65 +1,61 @@
 @page "/categories"
 @using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components.Authorization
 @inject HttpClient Http
 @inject NavigationManager Navigation
-@inject CustomAuthStateProvider AuthStateProvider
+@inject AuthenticationStateProvider AuthProvider
 
 <NavBar />
 
-@if (!isAuthenticated)
+<h3 class="page-title">Categories</h3>
+
+@if (!string.IsNullOrEmpty(errorMessage))
 {
-    Navigation.NavigateTo("/loginSignup", forceLoad: true);
+    <p class="error">@errorMessage</p>
+}
+else if (categories == null)
+{
+    <p class="loading">Loading categories...</p>
+}
+else if (categories.Count == 0)
+{
+    <p class="no-categories">No categories found.</p>
 }
 else
 {
-    <h3 class="page-title">Categories</h3>
-
-    @if (!string.IsNullOrEmpty(errorMessage))
-    {
-        <p class="error">@errorMessage</p>
-    }
-    else if (categories == null || categories.Count == 0)
-    {
-        <p class="loading">Loading categories...</p>
-    }
-    else
-    {
-        <div class="category-container">
-            @foreach (var cat in categories)
-            {
-                <div class="category-card">
-                    <h5 class="category-title">@cat.category</h5>
-                    @if (!string.IsNullOrEmpty(cat.image))
-                    {
-                        <img src="data:image/jpeg;base64,@cat.image" alt="@cat.category" class="category-image" />
-                    }
-                </div>
-            }
-        </div>
-    }
+    <div class="category-container">
+        @foreach (var cat in categories)
+        {
+            <div class="category-card">
+                <h5 class="category-title">@cat.category</h5>
+                @if (!string.IsNullOrEmpty(cat.image))
+                {
+                    <img src="data:image/jpeg;base64,@cat.image" 
+                         alt="@cat.category" class="category-image" />
+                }
+            </div>
+        }
+    </div>
 }
 
 @code {
-    private List<CategoryDisplay> categories = new();
+    private List<CategoryDisplay>? categories;
     private string errorMessage = string.Empty;
-    private bool isAuthenticated = false;
 
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        var user = authState.User;
-
-        isAuthenticated = user.Identity?.IsAuthenticated ?? false;
-
-        if (!isAuthenticated)
+        // 1️⃣ Check auth state
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        if (authState.User.Identity?.IsAuthenticated != true)
         {
-            Navigation.NavigateTo("/loginSignup", forceLoad: true);
+            Navigation.NavigateTo("/loginSignup", false);
             return;
         }
 
+        // 2️⃣ Fetch categories
         try
         {
-            categories = await Http.GetFromJsonAsync<List<CategoryDisplay>>("categories") 
+            categories = await Http.GetFromJsonAsync<List<CategoryDisplay>>("categories")
                          ?? new List<CategoryDisplay>();
         }
         catch (Exception ex)

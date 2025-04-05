@@ -1,38 +1,58 @@
 using System.Security.Claims;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.JSInterop;
 
 public class CustomAuthStateProvider : AuthenticationStateProvider
 {
-    private readonly AuthState _authState;
+    private readonly IJSRuntime _jsRuntime;
+    private readonly ClaimsPrincipal _anonymous = new ClaimsPrincipal(new ClaimsIdentity());
 
-    public CustomAuthStateProvider(AuthState authState)
+    public CustomAuthStateProvider(IJSRuntime jsRuntime)
     {
-        _authState = authState;
+        _jsRuntime = jsRuntime;
     }
 
-    public override Task<AuthenticationState> GetAuthenticationStateAsync()
+    public override async Task<AuthenticationState> GetAuthenticationStateAsync()
     {
-        var identity = _authState.IsAuthenticated
-            ? new ClaimsIdentity(new[]
-            {
-                new Claim(ClaimTypes.Name, _authState.Username ?? ""),
-                new Claim(ClaimTypes.Role, _authState.Username == "superuser" ? "superuser" : "user")
-            }, "custom")
-            : new ClaimsIdentity();
+        var username = await _jsRuntime.InvokeAsync<string>("localStorage.getItem", "username");
+        if (string.IsNullOrEmpty(username))
+            return new AuthenticationState(_anonymous);
 
-        var user = new ClaimsPrincipal(identity);
-        return Task.FromResult(new AuthenticationState(user));
+        // Build claims list
+        var claims = new List<Claim>
+        {
+            new Claim(ClaimTypes.Name, username)
+        };
+        if (username.ToLower() == "superuser")
+        {
+            claims.Add(new Claim(ClaimTypes.Role, "superuser"));
+        }
+
+        var identity = new ClaimsIdentity(claims, "CustomAuth");
+        return new AuthenticationState(new ClaimsPrincipal(identity));
     }
 
-    public void MarkUserAsAuthenticated(string username)
+    public async Task MarkUserAsAuthenticated(string username)
     {
-        _authState.Username = username;
-        NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
+        await _jsRuntime.InvokeVoidAsync("localStorage.setItem", "username", username);
+
+        var claims = new List<Claim>
+        {
+            new Claim(ClaimTypes.Name, username)
+        };
+        if (username.ToLower() == "superuser")
+        {
+            claims.Add(new Claim(ClaimTypes.Role, "superuser"));
+        }
+
+        var identity = new ClaimsIdentity(claims, "CustomAuth");
+        NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(new ClaimsPrincipal(identity))));
     }
 
-    public void MarkUserAsLoggedOut()
+    public async Task MarkUserAsLoggedOut()
     {
-        _authState.Username = null;
-        NotifyAuthenticationStateChanged(GetAuthenticationStateAsync());
+        await _jsRuntime.InvokeVoidAsync("localStorage.removeItem", "username");
+        NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(_anonymous)));
     }
 }

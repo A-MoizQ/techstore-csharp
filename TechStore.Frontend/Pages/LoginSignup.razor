@@ -2,6 +2,7 @@
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject CustomAuthStateProvider AuthStateProvider
+@inject IJSRuntime JSRuntime
 
 <link href="css/site.css" rel="stylesheet" />
 
@@ -101,10 +102,11 @@
 
         if (response.IsSuccessStatusCode)
         {
-            Message = "Login successful! Redirecting...";
-            IsSuccess = true;
-            AuthStateProvider.MarkUserAsAuthenticated(Username);
-            await Task.Delay(1000); // Small delay for UX
+            Message = "Login successful!";
+            await JSRuntime.InvokeVoidAsync("localStorage.setItem", "username", Username);
+            await JSRuntime.InvokeVoidAsync("localStorage.setItem", "isLoggedIn", "true");
+            
+            await AuthStateProvider.MarkUserAsAuthenticated(Username);
             Navigation.NavigateTo("/home");
         }
         else

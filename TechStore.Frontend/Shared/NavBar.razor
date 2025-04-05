@@ -2,50 +2,60 @@
 @inject NavigationManager Navigation
 @inject CustomAuthStateProvider AuthStateProvider
 @using Microsoft.AspNetCore.Components.Authorization
+@inject IJSRuntime JSRuntime
 
-<nav class="navbar">
-    <div class="nav-left">
-        <h1 class="logo">Tech Store</h1>
-    </div>
-    <div class="nav-center">
-        <input type="text" placeholder="Search..." class="search-bar" />
-        <button class="search-button">🔍</button>
-    </div>
-    <div class="nav-right">
-        <a href="/home" class="nav-link">Home</a>
-        <a href="/topselling" class="nav-link">Top Selling</a>
-        <a href="/categories" class="nav-link">Categories</a>
-        @if (isAuthenticated)
-        {
-            @if (isSuperuser)
-            {
-                <a href="/admin" class="nav-link">Admin</a>
-            }
-            <a href="#" class="nav-link" @onclick="Logout">Logout</a>
-        }
-        else
-        {
-            <a href="/loginSignup" class="nav-link">Login</a>
-        }
-        <div class="cart-icon">🛒</div>
-    </div>
-</nav>
+<AuthorizeView>
+    <Authorized Context="authContext">
+        <nav class="navbar">
+            <div class="nav-left">
+                <h1 class="logo">Tech Store</h1>
+            </div>
+            <div class="nav-center">
+                <input type="text" placeholder="Search..." class="search-bar" />
+                <button class="search-button">🔍</button>
+            </div>
+            <div class="nav-right">
+                <a @onclick="@(() => NavigateTo("/home"))" class="nav-link">Home</a>
+                <a @onclick="@(() => NavigateTo("/topselling"))" class="nav-link">Top Selling</a>
+                <a @onclick="@(() => NavigateTo("/categories"))" class="nav-link">Categories</a>
+                @if (authContext.User.IsInRole("superuser"))
+                {
+                    <a @onclick="@(() => NavigateTo("/admin"))" class="nav-link">Admin</a>
+                }
+                <a @onclick="@Logout" class="nav-link">Logout</a>
+                <div class="cart-icon">🛒</div>
+            </div>
+        </nav>
+    </Authorized>
+    <NotAuthorized>
+        <nav class="navbar">
+            <div class="nav-left">
+                <h1 class="logo">Tech Store</h1>
+            </div>
+            <div class="nav-center">
+                <input type="text" placeholder="Search..." class="search-bar" />
+                <button class="search-button">🔍</button>
+            </div>
+            <div class="nav-right">
+                <a @onclick="@(() => NavigateTo("/loginSignup"))" class="nav-link">Login</a>
+                <div class="cart-icon">🛒</div>
+            </div>
+        </nav>
+    </NotAuthorized>
+</AuthorizeView>
 
 @code {
-    private bool isAuthenticated = false;
-    private bool isSuperuser = false;
-
-    protected override async Task OnInitializedAsync()
+    private async Task Logout()
     {
-        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-        var user = authState.User;
-        isAuthenticated = user.Identity?.IsAuthenticated ?? false;
-        isSuperuser = user.IsInRole("superuser");
+        await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "username");
+        await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "isLoggedIn");
+
+        await AuthStateProvider.MarkUserAsLoggedOut();
+        Navigation.NavigateTo("/loginSignup", forceLoad: false);
     }
 
-    private void Logout()
+    private void NavigateTo(string path)
     {
-        AuthStateProvider.MarkUserAsLoggedOut();
-        Navigation.NavigateTo("/loginSignup", forceLoad: true);
+        Navigation.NavigateTo(path, forceLoad: false);
     }
 }

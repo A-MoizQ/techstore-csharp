@@ -5,61 +5,70 @@
 @inject AuthenticationStateProvider AuthProvider
 @using Microsoft.AspNetCore.Components.Authorization
 
-<AuthorizeView>
-    <Authorized>
-        <NavBar />
+<CascadingAuthenticationState>
+    <AuthorizeView>
+        <Authorized>
+            <NavBar />
 
-        <div class="homepage-container">
-            <h3 class="homepage-title">Homepage</h3>
+            <div class="homepage-container">
+                <h3 class="homepage-title">Homepage</h3>
 
-            @if (homepageData == null)
-            {
-                <p>Loading homepage...</p>
-            }
-            else if (!string.IsNullOrEmpty(errorMessage))
-            {
-                <p style="color:red">@errorMessage</p>
-            }
-            else
-            {
-                <div class="products-section">
-                    <h4 class="section-title">Top Selling Products</h4>
-                    <div class="products-list">
-                        @foreach (var product in homepageData.products)
-                        {
-                            <div class="product-card">
-                                <h5>@product.name</h5>
-                                @if (!string.IsNullOrEmpty(product.image))
-                                {
-                                    <img src="data:image/jpeg;base64,@product.image" alt="@product.name" />
-                                }
-                                <p>@product.description</p>
-                                <p>⭐ Rating: @product.rating</p>
-                                <p>💰 Price: @product.price PKR</p>
-                            </div>
-                        }
+                @if (homepageData == null)
+                {
+                    <p>Loading homepage...</p>
+                }
+                else if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <p style="color:red">@errorMessage</p>
+                }
+                else
+                {
+                    <div class="products-section">
+                        <h4 class="section-title">Top Selling Products</h4>
+                        <div class="products-list">
+                            @foreach (var product in homepageData.products)
+                            {
+                                <div class="product-card">
+                                    <h5>@product.name</h5>
+                                    @if (!string.IsNullOrEmpty(product.image))
+                                    {
+                                        <img src="data:image/jpeg;base64,@product.image" alt="@product.name" />
+                                    }
+                                    <p>@product.description</p>
+                                    <p>⭐ Rating: @product.rating</p>
+                                    <p>💰 Price: @product.price PKR</p>
+                                </div>
+                            }
+                        </div>
                     </div>
-                </div>
 
-                <div class="categories-section">
-                    <h4 class="section-title">Categories</h4>
-                    <div class="categories-list">
-                        @foreach (var cat in homepageData.categories)
-                        {
-                            <div class="category-card">
-                                <h5>@cat.category</h5>
-                                @if (!string.IsNullOrEmpty(cat.image))
-                                {
-                                    <img src="data:image/jpeg;base64,@cat.image" alt="@cat.category" />
-                                }
-                            </div>
-                        }
+                    <div class="categories-section">
+                        <h4 class="section-title">Categories</h4>
+                        <div class="categories-list">
+                            @foreach (var cat in homepageData.categories)
+                            {
+                                <div class="category-card">
+                                    <h5>@cat.category</h5>
+                                    @if (!string.IsNullOrEmpty(cat.image))
+                                    {
+                                        <img src="data:image/jpeg;base64,@cat.image" alt="@cat.category" />
+                                    }
+                                </div>
+                            }
+                        </div>
                     </div>
-                </div>
-            }
-        </div>
-    </Authorized>
-</AuthorizeView>
+                }
+            </div>
+        </Authorized>
+        <NotAuthorized>
+            <div>
+                @{
+                    NavManager.NavigateTo("/loginSignup", forceLoad: false);
+                }
+            </div>
+        </NotAuthorized>
+    </AuthorizeView>
+</CascadingAuthenticationState>
 
 @code {
     private HomepageData? homepageData;
@@ -67,18 +76,13 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var authState = await AuthProvider.GetAuthenticationStateAsync();
-        var user = authState.User;
-
-        if (!user.Identity.IsAuthenticated)
-        {
-            NavManager.NavigateTo("/loginSignup", forceLoad: true);
-            return;
-        }
-
         try
         {
-            homepageData = await Http.GetFromJsonAsync<HomepageData>("homepage");
+            var authState = await AuthProvider.GetAuthenticationStateAsync();
+            if (authState.User.Identity?.IsAuthenticated == true)
+            {
+                homepageData = await Http.GetFromJsonAsync<HomepageData>("homepage");
+            }
         }
         catch (Exception ex)
         {

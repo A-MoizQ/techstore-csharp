@@ -75,6 +75,23 @@ using (var connection = new SqliteConnection($"Data Source={cartDbPath}"))
     command.ExecuteNonQuery();
 }
 
+// User Profiles DB
+string profilesDbPath = "databases/user_profiles.db";
+using (var conn = new SqliteConnection($"Data Source={profilesDbPath}"))
+{
+    conn.Open();
+    var cmd = conn.CreateCommand();
+    cmd.CommandText = @"
+        CREATE TABLE IF NOT EXISTS user_profiles (
+            uname TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            address TEXT NOT NULL,
+            image BLOB,
+            wallet_balance REAL NOT NULL
+        );";
+    cmd.ExecuteNonQuery();
+}
+
 
 app.MapPost("/api/auth/signup", async (HttpContext context) =>
 {
@@ -479,6 +496,91 @@ app.MapDelete("/cart/clear/{uname}", (string uname) =>
     return Results.Ok($"{deleted} item(s) removed from cart.");
 });
 
+app.MapGet("/profile/{username}", (string username) =>
+{
+    username = username.ToLower();
+    // 1) Load profile
+    using var profileConn = new SqliteConnection($"Data Source={profilesDbPath}");
+    profileConn.Open();
+    var profileCmd = profileConn.CreateCommand();
+    profileCmd.CommandText = @"
+        SELECT name, address, image, wallet_balance
+        FROM user_profiles
+        WHERE uname = @uname";
+    profileCmd.Parameters.AddWithValue("@uname", username);
+
+    using var reader = profileCmd.ExecuteReader();
+    if (!reader.Read())
+        return Results.NotFound("Profile not found.");
+
+    var name = reader.GetString(0);
+    var address = reader.GetString(1);
+    byte[]? imageBytes = reader.IsDBNull(2) ? null : (byte[])reader[2];
+    double wallet = reader.GetDouble(3);
+    string? imageBase64 = imageBytes is null ? null : Convert.ToBase64String(imageBytes);
+
+    // 2) Compute stats from cart
+    using var cartConn = new SqliteConnection($"Data Source={cartDbPath}");
+    cartConn.Open();
+    var statsCmd = cartConn.CreateCommand();
+    statsCmd.CommandText = @"
+        SELECT 
+          COALESCE(SUM(quantity),0) AS itemsBought,
+          COUNT(*) AS totalTransactions
+        FROM cart
+        WHERE LOWER(uname)=@uname";
+    statsCmd.Parameters.AddWithValue("@uname", username);
+
+    using var statsReader = statsCmd.ExecuteReader();
+    statsReader.Read();
+    int itemsBought = statsReader.GetInt32(0);
+    int totalTransactions = statsReader.GetInt32(1);
+
+    var result = new
+    {
+        uname = username,
+        name,
+        address,
+        image = imageBase64,
+        walletBalance = wallet,
+        itemsBought,
+        totalTransactions
+    };
+    return Results.Json(result);
+});
+
+
+// POST to create profile if not exists
+app.MapPost("/profile/{username}", async (string username, HttpContext ctx) =>
+{
+    username = username.ToLower();
+    var req = await ctx.Request.ReadFromJsonAsync<ProfileRequest>();
+    if (req is null)
+        return Results.BadRequest("Invalid payload.");
+
+    byte[]? imageBytes = null;
+    if (!string.IsNullOrEmpty(req.ImageBase64))
+        imageBytes = Convert.FromBase64String(req.ImageBase64);
+
+    using var conn = new SqliteConnection($"Data Source={profilesDbPath}");
+    conn.Open();
+    var cmd = conn.CreateCommand();
+    cmd.CommandText = @"
+        INSERT OR REPLACE INTO user_profiles 
+          (uname, name, address, image, wallet_balance)
+        VALUES (@uname,@name,@address,@image,@wallet)";
+    cmd.Parameters.AddWithValue("@uname", username);
+    cmd.Parameters.AddWithValue("@name", req.Name);
+    cmd.Parameters.AddWithValue("@address", req.Address);
+    cmd.Parameters.AddWithValue("@image", imageBytes is null ? DBNull.Value : (object)imageBytes);
+    cmd.Parameters.AddWithValue("@wallet", req.WalletBalance);
+
+    cmd.ExecuteNonQuery();
+    return Results.Ok("Profile saved.");
+});
+
 app.Run();
 
 public record AuthRequest(string Username, string Password);
+// Profile create/update request payload
+public record ProfileRequest(string Name, string Address, double WalletBalance, string? ImageBase64);

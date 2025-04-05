@@ -71,7 +71,7 @@
 
         if (!user.Identity.IsAuthenticated)
         {
-            NavManager.NavigateTo("/loginSignup", forceLoad: true);
+            NavManager.NavigateTo("/loginSignup", forceLoad: false);
             return;
         }
 
