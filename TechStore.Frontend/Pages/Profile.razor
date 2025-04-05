@@ -14,35 +14,56 @@
 }
 else if (!isAuthenticated)
 {
-    <p>Redirecting to login...</p>  @* Show this while redirecting *@
+    <p>Redirecting to login...</p>
 }
 else if (notFound)
 {
-    <h3>Create Your Profile</h3>
-    <EditForm Model="profileForm" OnValidSubmit="SaveProfile">
-        <InputText @bind-Value="profileForm.Name" placeholder="Full Name" /><br/>
-        <InputText @bind-Value="profileForm.Address" placeholder="Address" /><br/>
-        <InputNumber @bind-Value="profileForm.WalletBalance" placeholder="Wallet Balance" /><br/>
-        <InputFile OnChange="OnImageSelected" /><br/>
-        <button type="submit">Save Profile</button>
-    </EditForm>
-    @if (!string.IsNullOrEmpty(message))
-    {
-        <p>@message</p>
-    }
+    <div class="profile-form-container">
+        <h3>Create Your Profile</h3>
+        <EditForm Model="profileForm" OnValidSubmit="SaveProfile">
+            <InputText @bind-Value="profileForm.Name" placeholder="Full Name" /><br />
+            <InputText @bind-Value="profileForm.Address" placeholder="Address" /><br />
+            <InputNumber @bind-Value="profileForm.WalletBalance" placeholder="Wallet Balance" /><br />
+            <InputFile OnChange="OnImageSelected" /><br />
+            <button type="submit">Save Profile</button>
+        </EditForm>
+        @if (!string.IsNullOrEmpty(message))
+        {
+            <p>@message</p>
+        }
+    </div>
 }
 else
 {
-    <h3>@profile.Name's Profile</h3>
-    @if (!string.IsNullOrEmpty(profile.ImageBase64))
-    {
-        <img src="data:image/png;base64,@profile.ImageBase64" alt="Profile Image" width="150" /><br/>
-    }
-    <p><strong>Name:</strong> @profile.Name</p>
-    <p><strong>Address:</strong> @profile.Address</p>
-    <p><strong>Wallet:</strong> @profile.WalletBalance</p>
-    <p><strong>Items Bought:</strong> @profile.ItemsBought</p>
-    <p><strong>Total Transactions:</strong> @profile.TotalTransactions</p>
+    <div class="profile-container">
+        <div class="profile-left">
+            <div class="profile-header">
+                @if (!string.IsNullOrEmpty(profile.ImageBase64))
+                {
+                    <img src="@GetProfileImageSrc()" alt="Profile Image" />
+                }
+                else
+                {
+                    <img src="images/default-pfp.png" alt="Default Profile Image" />
+                }
+                <h2>@profile.Name</h2>
+            </div>
+
+            <div class="profile-details">
+                <p>@profile.Uname</p>
+                <p>@profile.Address</p>
+                <p>Total Transactions : @profile.TotalTransactions</p>
+            </div>
+        </div>
+
+        <div class="profile-right">
+            <div class="wallet-section">
+                <h3>Wallet</h3>
+                <div class="balance">Balance : @profile.WalletBalance rs</div>
+                <button>+50 rs</button>
+            </div>
+        </div>
+    </div>
 }
 
 @code {
@@ -56,26 +77,31 @@ else
     private ProfileData? profile;
     private ProfileForm profileForm = new();
 
+    private IBrowserFile? selectedImage;
+
     protected override async Task OnInitializedAsync()
     {
-        // Check authentication state
         var state = await AuthStateProvider.GetAuthenticationStateAsync();
         isAuthenticated = state.User.Identity?.IsAuthenticated ?? false;
-        if (!isAuthenticated) 
+
+        if (!isAuthenticated)
         {
             isLoading = false;
-            await RedirectToLogin();  // Redirect asynchronously
+            await RedirectToLogin();
             return;
         }
 
-        // Load profile data
+        await LoadProfile();
+        isLoading = false;
+    }
+
+    private async Task LoadProfile()
+    {
         try
         {
-            profile = await Http.GetFromJsonAsync<ProfileData>($"profile/{Username}");
-            if (profile is null)
-                notFound = true;
-            else
-                notFound = false;
+            // Add a cache-busting parameter to ensure we get fresh data
+            profile = await Http.GetFromJsonAsync<ProfileData>($"profile/{Username}?t={DateTime.Now.Ticks}");
+            notFound = profile is null;
         }
         catch (HttpRequestException ex) when (ex.Message.Contains("404"))
         {
@@ -85,44 +111,62 @@ else
         {
             message = ex.Message;
         }
-        isLoading = false;
     }
 
     private async Task RedirectToLogin()
     {
-        Navigation.NavigateTo("/loginSignup");  // Redirect to login page
+        Navigation.NavigateTo("/loginSignup");
     }
 
     private async Task SaveProfile()
     {
         message = "";
-        // Convert image file to base64 if selected
-        if (selectedImage != null)
-        {
-            using var stream = selectedImage.OpenReadStream(5 * 1024 * 1024);  // 5MB max file size
-            using var ms = new MemoryStream();
-            await stream.CopyToAsync(ms);
-            profileForm.ImageBase64 = Convert.ToBase64String(ms.ToArray());
-        }
 
-        var response = await Http.PostAsJsonAsync($"profile/{Username}", profileForm);
-        if (response.IsSuccessStatusCode)
+        try
         {
-            message = "Profile saved!";
-            // Reload profile after saving
-            profile = await Http.GetFromJsonAsync<ProfileData>($"profile/{Username}");
-            notFound = false;
+            if (selectedImage != null)
+            {
+                using var stream = selectedImage.OpenReadStream(5 * 1024 * 1024);
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+                profileForm.ImageBase64 = Convert.ToBase64String(ms.ToArray());
+            }
+
+            var response = await Http.PostAsJsonAsync($"profile/{Username}", profileForm);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                message = "Profile saved!";
+                
+                // Option 1: If your API returns the updated profile
+                // profile = await response.Content.ReadFromJsonAsync<ProfileData>();
+                
+                // Option 2: Make a fresh request to get the updated profile
+                await LoadProfile();
+                
+                // Update UI state
+                notFound = false;
+                StateHasChanged();
+            }
+            else
+            {
+                message = await response.Content.ReadAsStringAsync();
+            }
         }
-        else
+        catch (Exception ex)
         {
-            message = await response.Content.ReadAsStringAsync();
+            message = $"Error saving profile: {ex.Message}";
         }
     }
 
-    private IBrowserFile? selectedImage;
     private void OnImageSelected(InputFileChangeEventArgs e)
     {
         selectedImage = e.File;
+    }
+
+    private string GetProfileImageSrc()
+    {
+        return $"data:image/png;base64,{profile?.ImageBase64}?t={DateTime.Now.Ticks}";
     }
 
     class ProfileData

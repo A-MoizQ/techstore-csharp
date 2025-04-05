@@ -3,6 +3,7 @@
 @inject CustomAuthStateProvider AuthStateProvider
 @using Microsoft.AspNetCore.Components.Authorization
 @inject IJSRuntime JSRuntime
+@inject HttpClient Http
 
 <AuthorizeView>
     <Authorized Context="authContext">
@@ -22,6 +23,19 @@
                 {
                     <a @onclick="@(() => NavigateTo("/admin"))" class="nav-link">Admin</a>
                 }
+
+                <!-- Profile Picture and Link -->
+                <a @onclick="@(() => NavigateTo($"/profile/{Username}"))" class="nav-link profile-link">
+                    @if (!string.IsNullOrEmpty(profileImage))
+                    {
+                        <img src="data:image/png;base64,@profileImage" alt="Profile Image" class="profile-icon" />
+                    }
+                    else
+                    {
+                        <img src="images/default-pfp.png" alt="Default Profile Image" class="profile-icon" />
+                    }
+                </a>
+
                 <a @onclick="@Logout" class="nav-link">Logout</a>
                 <div class="cart-icon">🛒</div>
             </div>
@@ -45,6 +59,39 @@
 </AuthorizeView>
 
 @code {
+    private string Username = "";
+    private bool isAuthenticated;
+    private string profileImage = "";  // Base64 string for the profile image
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        isAuthenticated = state.User.Identity?.IsAuthenticated ?? false;
+
+        if (isAuthenticated)
+        {
+            Username = state.User.Identity.Name;  // Assuming the user's name is the username
+            await LoadProfileImage();  // Load the profile image if available
+        }
+    }
+
+    private async Task LoadProfileImage()
+    {
+        try
+        {
+            var profile = await Http.GetFromJsonAsync<ProfileData>($"profile/{Username}");
+            if (profile != null && !string.IsNullOrEmpty(profile.ImageBase64))
+            {
+                profileImage = profile.ImageBase64;  // Store the base64 encoded image
+            }
+        }
+        catch (Exception ex)
+        {
+            // Handle any error in fetching the profile data
+            Console.WriteLine($"Error loading profile image: {ex.Message}");
+        }
+    }
+
     private async Task Logout()
     {
         await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "username");
@@ -57,5 +104,15 @@
     private void NavigateTo(string path)
     {
         Navigation.NavigateTo(path, forceLoad: false);
+    }
+
+    class ProfileData
+    {
+        public string Uname { get; set; }
+        public string Name { get; set; }
+        public string? ImageBase64 { get; set; } // Base64 encoded profile image
+        public double WalletBalance { get; set; }
+        public int ItemsBought { get; set; }
+        public int TotalTransactions { get; set; }
     }
 }

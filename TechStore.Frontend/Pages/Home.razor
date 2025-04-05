@@ -3,30 +3,35 @@
 @inject HttpClient Http
 @inject NavigationManager NavManager
 @inject AuthenticationStateProvider AuthProvider
+@inject IJSRuntime JS
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Web
 
-<CascadingAuthenticationState>
-    <AuthorizeView>
-        <Authorized>
-            <NavBar />
+<AuthorizeView>
+    <Authorized>
+        <NavBar />
 
-            <div class="homepage-container">
-                <h3 class="homepage-title">Homepage</h3>
+        <div class="homepage-container">
+            <h3 class="homepage-title">Homepage</h3>
 
-                @if (homepageData == null)
-                {
-                    <p>Loading homepage...</p>
-                }
-                else if (!string.IsNullOrEmpty(errorMessage))
-                {
-                    <p style="color:red">@errorMessage</p>
-                }
-                else
-                {
-                    <div class="products-section">
-                        <h4 class="section-title">Top Selling Products</h4>
-                        <div class="products-list">
-                            @foreach (var product in homepageData.products)
+            @if (homepageData == null)
+            {
+                <p>Loading homepage...</p>
+            }
+            else if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <p style="color:red">@errorMessage</p>
+            }
+            else
+            {
+                <div class="products-section">
+                    <h4 class="section-title">Top Selling Products</h4>
+
+                    <div class="scroll-buttons-container">
+                        <button @onclick="() => ScrollProducts(-1)" class="scroll-btn">◀</button>
+
+                        <div class="products-list" @ref="productListRef">
+                            @foreach (var product in homepageData.products.Take(10)) // just 10 for testing
                             {
                                 <div class="product-card">
                                     <h5>@product.name</h5>
@@ -40,11 +45,18 @@
                                 </div>
                             }
                         </div>
-                    </div>
 
-                    <div class="categories-section">
-                        <h4 class="section-title">Categories</h4>
-                        <div class="categories-list">
+                        <button @onclick="() => ScrollProducts(1)" class="scroll-btn">▶</button>
+                    </div>
+                </div>
+
+                <div class="categories-section">
+                    <h4 class="section-title">Categories</h4>
+
+                    <div class="scroll-buttons-container">
+                        <button @onclick="ScrollCategoriesLeft" class="scroll-btn">◀</button>
+
+                        <div class="categories-list" @ref="categoriesListRef">
                             @foreach (var cat in homepageData.categories)
                             {
                                 <div class="category-card">
@@ -56,39 +68,60 @@
                                 </div>
                             }
                         </div>
+
+                        <button @onclick="ScrollCategoriesRight" class="scroll-btn">▶</button>
                     </div>
-                }
-            </div>
-        </Authorized>
-        <NotAuthorized>
-            <div>
-                @{
-                    NavManager.NavigateTo("/loginSignup", forceLoad: false);
-                }
-            </div>
-        </NotAuthorized>
-    </AuthorizeView>
-</CascadingAuthenticationState>
+                </div>
+
+            }
+        </div>
+    </Authorized>
+</AuthorizeView>
 
 @code {
     private HomepageData? homepageData;
     private string errorMessage = string.Empty;
+    private ElementReference productListRef;
+    private const int scrollAmount = 300;
 
     protected override async Task OnInitializedAsync()
     {
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (!user.Identity.IsAuthenticated)
+        {
+            NavManager.NavigateTo("/loginSignup", forceLoad: true);
+            return;
+        }
+
         try
         {
-            var authState = await AuthProvider.GetAuthenticationStateAsync();
-            if (authState.User.Identity?.IsAuthenticated == true)
-            {
-                homepageData = await Http.GetFromJsonAsync<HomepageData>("homepage");
-            }
+            homepageData = await Http.GetFromJsonAsync<HomepageData>("homepage");
         }
         catch (Exception ex)
         {
             errorMessage = ex.Message;
         }
     }
+
+    private async Task ScrollProducts(int direction)
+    {
+        await JS.InvokeVoidAsync("scrollElementHorizontally", productListRef, direction * scrollAmount);
+    }
+
+    private ElementReference categoriesListRef;
+
+    private async Task ScrollCategoriesLeft()
+    {
+        await JS.InvokeVoidAsync("scrollElementHorizontally", categoriesListRef, -scrollAmount);
+    }
+
+    private async Task ScrollCategoriesRight()
+    {
+        await JS.InvokeVoidAsync("scrollElementHorizontally", categoriesListRef, scrollAmount);
+    }
+
 
     public class HomepageData
     {
