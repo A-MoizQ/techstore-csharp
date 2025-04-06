@@ -37,7 +37,7 @@
                 </a>
 
                 <a @onclick="@Logout" class="nav-link">Logout</a>
-                <div class="cart-icon">🛒</div>
+                <div class="cart-icon" @onclick="GoToCart" title="View Cart">🛒</div>
             </div>
         </nav>
     </Authorized>
@@ -62,6 +62,10 @@
     private string Username = "";
     private bool isAuthenticated;
     private string profileImage = "";  // Base64 string for the profile image
+    private void GoToCart()
+    {
+        Navigation.NavigateTo("/cart");
+    }
 
     protected override async Task OnInitializedAsync()
     {

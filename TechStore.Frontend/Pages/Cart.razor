@@ -9,15 +9,15 @@
 
 <div class="cart-container">
     <div class="cart-left">
-        <h2>Wishlist / Checkout</h2>
+        <h2 class="cart-title">Wishlist / Checkout</h2>
 
         @if (!IsAuthenticated)
         {
-            <p>Please log in to view your cart.</p>
+            <p class="empty-msg">Please log in to view your cart.</p>
         }
         else if (CartItems.Count == 0)
         {
-            <p>No items in your cart.</p>
+            <p class="empty-msg">No items in your cart.</p>
         }
         else
         {
@@ -31,28 +31,32 @@
                         }
                         else
                         {
-                            <div class="placeholder">Image</div>
+                            <div class="image-placeholder">Image</div>
                         }
                     </div>
 
-                    <div class="product-details">
-                        <h3>@item.ProductName</h3>
-                        <p>@item.ProductPrice Pkr</p>
-                        <button class="btn" @onclick="() => RemoveItem(item.CartId)">-</button>
+                    <div class="product-info">
+                        <h3 class="product-name">@item.ProductName</h3>
+                        <p class="product-price">@item.ProductPrice Pkr</p>
+                        <button class="btn remove-btn" @onclick="() => RemoveItem(item.CartId)">-</button>
+                        <button class="view-btn">View Product</button>
                     </div>
                 </div>
             }
 
-            <button class="btn primary-btn" @onclick="ProceedToCheckout">Proceed to checkout / Cart</button>
+            <button class="btn checkout-btn" @onclick="ProceedToCheckout">
+                Proceed to checkout / Cart
+            </button>
         }
     </div>
 
     <div class="cart-right">
-        <h2>Wallet</h2>
-        <p>Balance : @UserBalance rs :(</p>
+        <h2 class="wallet-title">Wallet</h2>
+        <p class="wallet-balance">Balance : @UserBalance rs :(</p>
         <button class="wallet-btn">+@TotalPrice rs</button>
     </div>
 </div>
+
 
 @code {
     private List<CartItem> CartItems { get; set; } = new();

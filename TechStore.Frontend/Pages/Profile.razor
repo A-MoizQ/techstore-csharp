@@ -139,10 +139,10 @@ else
                 message = "Profile saved!";
                 
                 // Option 1: If your API returns the updated profile
-                // profile = await response.Content.ReadFromJsonAsync<ProfileData>();
+                 profile = await response.Content.ReadFromJsonAsync<ProfileData>();
                 
                 // Option 2: Make a fresh request to get the updated profile
-                await LoadProfile();
+                @* await LoadProfile(); *@
                 
                 // Update UI state
                 notFound = false;
