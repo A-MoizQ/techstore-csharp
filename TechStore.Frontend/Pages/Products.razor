@@ -1,5 +1,7 @@
 @page "/products"
+@using System.Net.Http.Json
 @using Microsoft.AspNetCore.Components.Authorization
+@inject HttpClient Http
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthProvider
 
@@ -36,7 +38,6 @@ else
         {
             <div class="product-row">
                 <div class="product-card">@RenderProduct(filteredProducts[i])</div>
-
                 @if (i + 1 < filteredProducts.Count)
                 {
                     <div class="product-card">@RenderProduct(filteredProducts[i + 1])</div>
@@ -58,43 +59,26 @@ else
         var authState = await AuthProvider.GetAuthenticationStateAsync();
         if (authState.User.Identity?.IsAuthenticated != true)
         {
-            Navigation.NavigateTo("/loginSignup", forceLoad: true);
+            Navigation.NavigateTo("/loginSignup");
             return;
         }
 
         try
         {
-            LoadMockProducts();
+            allProducts = await Http.GetFromJsonAsync<List<Product>>("api/products")
+                          ?? new List<Product>();
 
             categories = allProducts
                 .Select(p => p.Category)
                 .Distinct()
                 .ToList();
 
-            filteredProducts = allProducts
-                .OrderBy(_ => Guid.NewGuid())
-                .ToList();
+            filteredProducts = new List<Product>(allProducts);
         }
         catch (Exception ex)
         {
             errorMessage = ex.Message;
         }
-    }
-
-    private void LoadMockProducts()
-    {
-        allProducts = new List<Product>
-        {
-            new() { Name = "iPhone 14", Category = "Mobiles", Description = "Apple smartphone", Price = 299999, Rating = 5 },
-            new() { Name = "Galaxy S22", Category = "Mobiles", Description = "Samsung flagship", Price = 249999, Rating = 4 },
-            new() { Name = "MacBook Air", Category = "Laptops", Description = "Apple laptop", Price = 399999, Rating = 5 },
-            new() { Name = "Dell XPS 13", Category = "Laptops", Description = "High-end Dell laptop", Price = 349999, Rating = 4 },
-            new() { Name = "Sony WH-1000XM4", Category = "Headphones", Description = "Noise-canceling headphones", Price = 89999, Rating = 5 },
-            new() { Name = "AirPods Pro", Category = "Headphones", Description = "Apple wireless earbuds", Price = 64999, Rating = 4 },
-            new() { Name = "Canon EOS R", Category = "Cameras", Description = "Mirrorless camera", Price = 550000, Rating = 5 },
-            new() { Name = "Nikon Z6", Category = "Cameras", Description = "Nikon mirrorless camera", Price = 499000, Rating = 4 },
-            new() { Name = "Tralalero", Category = "Cameras", Description = "Nikon mirrorless camera", Price = 499000, Rating = 4 }
-        };
     }
 
     private void FilterProducts(string category)
@@ -108,7 +92,16 @@ else
     private RenderFragment RenderProduct(Product p) => __builder =>
     {
         <div class="product-card-inner">
-            <div class="product-image">Image</div>
+            <div class="product-image">
+                @if (!string.IsNullOrEmpty(p.Image))
+                {
+                    <img src="data:image/jpeg;base64,@p.Image" alt="@p.Name" />
+                }
+                else
+                {
+                    <div class="placeholder">No Image</div>
+                }
+            </div>
             <div class="product-info">
                 <h4>@p.Name</h4>
                 <div class="product-rating">
@@ -119,17 +112,23 @@ else
                 </div>
                 <p>@($"{p.Price} PKR")</p>
                 <p><strong>Description:</strong><br />@p.Description</p>
-                <button class="add-to-cart-btn">Add to cart</button>
+                <button class="btn add-to-cart-btn">Add to cart</button>
+                <button class="btn view-product-btn" @onclick='() => Navigation.NavigateTo($"/product/{p.Id}")'>
+                    View Product
+                </button>
             </div>
         </div>;
     };
 
     public class Product
     {
+        public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
-        public string Category { get; set; } = string.Empty;
         public string? Description { get; set; }
+        public string Category { get; set; } = string.Empty;
+        public string? Image { get; set; }
         public int Rating { get; set; }
         public double Price { get; set; }
+        public bool IsTop { get; set; }
     }
 }

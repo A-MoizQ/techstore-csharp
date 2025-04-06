@@ -193,6 +193,35 @@ app.MapPost("/admin", async (HttpContext context) =>
     return Results.Ok("Product added successfully.");
 });
 
+app.MapGet("/api/products", () =>
+{
+    var products = new List<object>();
+    using var connection = new SqliteConnection($"Data Source={productsDbPath}");
+    connection.Open();
+
+    var cmd = connection.CreateCommand();
+    cmd.CommandText = @"
+        SELECT id, name, description, category, image, rating, price, isTop
+        FROM products;";
+    using var reader = cmd.ExecuteReader();
+    while (reader.Read())
+    {
+        products.Add(new
+        {
+            id = reader.GetInt32(0),
+            name = reader.GetString(1),
+            description = reader.IsDBNull(2) ? null : reader.GetString(2),
+            category = reader.GetString(3),
+            image = reader.IsDBNull(4) ? null : Convert.ToBase64String((byte[])reader[4]),
+            rating = reader.GetInt32(5),
+            price = reader.GetDouble(6),
+            isTop = reader.GetInt32(7) == 1
+        });
+    }
+
+    return Results.Json(products);
+});
+
 app.MapGet("/product/{id:int}", async (int id) =>
 {
     using var connection = new SqliteConnection($"Data Source={productsDbPath}");
