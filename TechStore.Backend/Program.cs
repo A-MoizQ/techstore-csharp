@@ -193,7 +193,7 @@ app.MapPost("/admin", async (HttpContext context) =>
     return Results.Ok("Product added successfully.");
 });
 
-app.MapGet("/api/products", () =>
+app.MapGet("/api/products",async () =>
 {
     var products = new List<object>();
     using var connection = new SqliteConnection($"Data Source={productsDbPath}");
@@ -283,7 +283,7 @@ app.MapGet("/topselling",async () =>
 });
 
 
-app.MapGet("/homepage", () =>
+app.MapGet("/homepage",async () =>
 {
     string productsDbPath = "databases/products.db";
     using var connection = new SqliteConnection($"Data Source={productsDbPath}");
@@ -341,7 +341,7 @@ app.MapGet("/homepage", () =>
     return Results.Json(new { products, categories = categoryDisplayList });
 });
 
-app.MapGet("/categories", () =>
+app.MapGet("/categories",async () =>
 {
     string productsDbPath = "databases/products.db";
     using var connection = new SqliteConnection($"Data Source={productsDbPath}");
@@ -377,9 +377,11 @@ app.MapGet("/categories", () =>
 // Add to cart endpoint
 app.MapPost("/cart", async (HttpContext context) =>
 {
+    // Parse incoming JSON request
     var jsonDoc = await JsonDocument.ParseAsync(context.Request.Body);
     var root = jsonDoc.RootElement;
 
+    // Validate required fields
     if (!root.TryGetProperty("uname", out var unameProp) ||
         !root.TryGetProperty("productId", out var productIdProp) ||
         !root.TryGetProperty("quantity", out var quantityProp))
@@ -391,24 +393,25 @@ app.MapPost("/cart", async (HttpContext context) =>
     int productId = productIdProp.GetInt32();
     int quantity = quantityProp.GetInt32();
 
-    // Ensure the user exists before adding to cart
+    // Check if the user exists in the users database
     using var userConnection = new SqliteConnection($"Data Source={usersDbPath}");
     userConnection.Open();
     var userCheckCmd = userConnection.CreateCommand();
     userCheckCmd.CommandText = "SELECT COUNT(*) FROM users WHERE uname = @uname";
     userCheckCmd.Parameters.AddWithValue("@uname", uname);
     long userExists = (long)userCheckCmd.ExecuteScalar();
+    userConnection.Close();
 
     if (userExists == 0)
     {
         return Results.BadRequest("User does not exist.");
     }
 
-    // Add or update item in cart
+    // Use the cart database connection (ensuring FK constraints remain intact)
     using var connection = new SqliteConnection($"Data Source={cartDbPath}");
     connection.Open();
 
-    // Check if the item is already in the cart
+    // Check if an entry already exists for this user and product
     var checkCmd = connection.CreateCommand();
     checkCmd.CommandText = @"
         SELECT quantity FROM cart
@@ -420,32 +423,57 @@ app.MapPost("/cart", async (HttpContext context) =>
 
     if (existingQuantityObj != null)
     {
-        // Item exists, update the quantity
         int existingQuantity = Convert.ToInt32(existingQuantityObj);
         int newQuantity = existingQuantity + quantity;
 
-        var updateCmd = connection.CreateCommand();
-        updateCmd.CommandText = @"
-            UPDATE cart
-            SET quantity = @newQuantity
-            WHERE uname = @uname AND product_id = @product_id";
-        updateCmd.Parameters.AddWithValue("@newQuantity", newQuantity);
-        updateCmd.Parameters.AddWithValue("@uname", uname);
-        updateCmd.Parameters.AddWithValue("@product_id", productId);
-
-        try
+        if (newQuantity <= 0)
         {
-            updateCmd.ExecuteNonQuery();
-            return Results.Ok("Cart item quantity updated.");
+            // Remove the item if the new quantity is zero or negative
+            var deleteCmd = connection.CreateCommand();
+            deleteCmd.CommandText = @"
+                DELETE FROM cart
+                WHERE uname = @uname AND product_id = @product_id";
+            deleteCmd.Parameters.AddWithValue("@uname", uname);
+            deleteCmd.Parameters.AddWithValue("@product_id", productId);
+            try
+            {
+                deleteCmd.ExecuteNonQuery();
+                connection.Close();
+                return Results.Ok("Cart item removed as quantity reached zero or below.");
+            }
+            catch (Exception ex)
+            {
+                connection.Close();
+                return Results.Problem($"Failed to remove cart item: {ex.Message}");
+            }
         }
-        catch (Exception ex)
+        else
         {
-            return Results.Problem($"Failed to update cart item: {ex.Message}");
+            // Update the cart with the new quantity
+            var updateCmd = connection.CreateCommand();
+            updateCmd.CommandText = @"
+                UPDATE cart
+                SET quantity = @newQuantity
+                WHERE uname = @uname AND product_id = @product_id";
+            updateCmd.Parameters.AddWithValue("@newQuantity", newQuantity);
+            updateCmd.Parameters.AddWithValue("@uname", uname);
+            updateCmd.Parameters.AddWithValue("@product_id", productId);
+            try
+            {
+                updateCmd.ExecuteNonQuery();
+                connection.Close();
+                return Results.Ok("Cart item quantity updated.");
+            }
+            catch (Exception ex)
+            {
+                connection.Close();
+                return Results.Problem($"Failed to update cart item: {ex.Message}");
+            }
         }
     }
     else
     {
-        // Item does not exist, insert new row
+        // Insert a new cart item
         var insertCmd = connection.CreateCommand();
         insertCmd.CommandText = @"
             INSERT INTO cart (uname, product_id, quantity)
@@ -457,10 +485,12 @@ app.MapPost("/cart", async (HttpContext context) =>
         try
         {
             insertCmd.ExecuteNonQuery();
+            connection.Close();
             return Results.Ok("Item added to cart.");
         }
         catch (Exception ex)
         {
+            connection.Close();
             return Results.Problem($"Failed to add item to cart: {ex.Message}");
         }
     }
@@ -468,17 +498,18 @@ app.MapPost("/cart", async (HttpContext context) =>
 
 
 // Get all cart items for a user by their username
-app.MapGet("/cart/{uname}", (string uname) =>
+app.MapGet("/cart/{uname}",async (string uname) =>
 {
+    // Open connection to the cart database
     using var connection = new SqliteConnection($"Data Source={cartDbPath}");
     connection.Open();
 
-    // Attach the products database so we can join product details
+    // Attach the products database to join product details with cart items
     var attachCmd = connection.CreateCommand();
     attachCmd.CommandText = $"ATTACH DATABASE '{productsDbPath}' AS prod;";
     attachCmd.ExecuteNonQuery();
 
-    // Join cart items with corresponding product details
+    // Retrieve cart items with product details
     var command = connection.CreateCommand();
     command.CommandText = @"
         SELECT 
@@ -497,24 +528,25 @@ app.MapGet("/cart/{uname}", (string uname) =>
     using var reader = command.ExecuteReader();
     while (reader.Read())
     {
-        // Read data and prepare it for frontend consumption
         items.Add(new
         {
-            cart_id = reader.GetInt32(0),
-            product_id = reader.GetInt32(1),
-            product_name = reader.GetString(2),
-            product_image = reader.IsDBNull(3) ? null : Convert.ToBase64String((byte[])reader[3]),
-            product_price = reader.IsDBNull(4) ? 0.0 : reader.GetDouble(4),
-            quantity = reader.GetInt32(5)
+            // Map columns to properties expected by Cart.razor
+            CartId = reader.GetInt32(0),
+            ProductId = reader.GetInt32(1),
+            ProductName = reader.GetString(2),
+            ProductImage = reader.IsDBNull(3) ? null : Convert.ToBase64String((byte[])reader[3]),
+            ProductPrice = reader.IsDBNull(4) ? 0.0 : reader.GetDouble(4),
+            Quantity = reader.GetInt32(5)
         });
     }
 
+    connection.Close();
     return Results.Json(items);
 });
 
 
 // clear the cart (by option or at checkout)
-app.MapDelete("/cart/clear/{uname}", (string uname) =>
+app.MapDelete("/cart/clear/{uname}",async (string uname) =>
 {
     using var connection = new SqliteConnection($"Data Source={cartDbPath}");
     connection.Open();
