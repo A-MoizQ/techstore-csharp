@@ -91,9 +91,32 @@
 
     private async Task RemoveItem(int cartId)
     {
-        // Since individual delete isn't provided, clear the entire cart (or implement individual delete backend route)
-        await Http.DeleteAsync($"/cart/clear/{CurrentUser}");
-        await LoadCart();
+        var item = CartItems.FirstOrDefault(x => x.CartId == cartId);
+        if (item != null)
+        {
+            await UpdateCart(item.ProductId, -1);
+        }
+    }
+
+    private async Task UpdateCart(int productId, int quantity)
+    {
+        var payload = new
+        {
+            uname = CurrentUser,
+            productId = productId,
+            quantity = quantity
+        };
+
+        var response = await Http.PostAsJsonAsync("/cart", payload);
+        if (response.IsSuccessStatusCode)
+        {
+            await LoadCart(); // Refresh the cart after update
+        }
+        else
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"Cart update failed: {error}");
+        }
     }
 
     private void ProceedToCheckout()

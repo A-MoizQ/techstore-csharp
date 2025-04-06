@@ -112,13 +112,54 @@ else
                 </div>
                 <p>@($"{p.Price} PKR")</p>
                 <p><strong>Description:</strong><br />@p.Description</p>
-                <button class="btn add-to-cart-btn">Add to cart</button>
+                <button class="btn add-to-cart-btn" @onclick="() => AddToCart(p.Id)">Add to cart</button>
                 <button class="btn view-product-btn" @onclick='() => Navigation.NavigateTo($"/product/{p.Id}")'>
                     View Product
                 </button>
             </div>
         </div>;
     };
+
+    private async Task AddToCart(int productId)
+    {
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            var uname = user.Identity.Name ?? "guest";
+
+            var payload = new
+            {
+                uname = uname,
+                productId = productId,
+                quantity = 1 // default quantity
+            };
+
+            try
+            {
+                var response = await Http.PostAsJsonAsync("/cart", payload);
+                if (response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"Product {productId} added to cart.");
+                    // Optionally show a toast/snackbar
+                }
+                else
+                {
+                    var error = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"Failed to add to cart: {error}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error adding to cart: {ex.Message}");
+            }
+        }
+        else
+        {
+            Navigation.NavigateTo("/loginSignup");
+        }
+    }
 
     public class Product
     {
