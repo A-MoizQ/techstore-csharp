@@ -19,6 +19,8 @@
                 <a @onclick="@(() => NavigateTo("/home"))" class="nav-link">Home</a>
                 <a @onclick="@(() => NavigateTo("/topselling"))" class="nav-link">Top Selling</a>
                 <a @onclick="@(() => NavigateTo("/products"))" class="nav-link">Products</a>
+                <a @onclick="@(() => NavigateTo("/faqs"))" class="nav-link">FAQs</a>
+
                 @if (authContext.User.IsInRole("superuser"))
                 {
                     <a @onclick="@(() => NavigateTo("/admin"))" class="nav-link">Admin</a>
@@ -52,6 +54,8 @@
             </div>
             <div class="nav-right">
                 <a @onclick="@(() => NavigateTo("/loginSignup"))" class="nav-link">Login</a>
+                <a @onclick="@(() => NavigateTo("/faqs"))" class="nav-link">FAQs</a>
+
                 <div class="cart-icon">🛒</div>
             </div>
         </nav>

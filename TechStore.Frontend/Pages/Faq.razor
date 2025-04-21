@@ -1,0 +1,90 @@
+@page "/faqs"
+@using System.Net.Http.Json
+@inject HttpClient Http
+@inject NavigationManager NavManager
+@inject AuthenticationStateProvider AuthProvider
+@inject IJSRuntime JS
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Web
+
+
+<AuthorizeView>
+    <Authorized>
+        <NavBar />
+
+        <div class="faq-page">
+            @if (faqs == null)
+            {
+                <p>Loading FAQs...</p>
+            }
+            else if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <p style="color:red">@errorMessage</p>
+            }
+            else
+            {
+                <div class="faq-container">
+                    <h3 class="faq-title">FAQs</h3> 
+
+                    @foreach (var faq in faqs)
+                    {
+                        <div class="faq-item">
+                            <button class="faq-question" @onclick="() => ToggleAnswer(faq.id)">
+                                @faq.question
+                                <span style="float:right;">@((expandedFaqId == faq.id) ? "▲" : "▼")</span>
+                            </button>
+                            @if (expandedFaqId == faq.id)
+                            {
+                                <div class="faq-answer">@faq.answer</div>
+                            }
+                        </div>
+                    }
+
+                    <div class="faq-input">
+                        <input type="text" placeholder="Type your question..." class="faq-message-box" />
+                    </div>
+                </div>
+            }
+        </div>
+
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    private List<FAQEntry>? faqs;
+    private int? expandedFaqId;
+    private string errorMessage = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (!user.Identity?.IsAuthenticated ?? false)
+        {
+            NavManager.NavigateTo("/loginSignup", forceLoad: true);
+            return;
+        }
+
+        try
+        {
+            faqs = await Http.GetFromJsonAsync<List<FAQEntry>>("/faqs/random");
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+    }
+
+    private void ToggleAnswer(int id)
+    {
+        expandedFaqId = expandedFaqId == id ? null : id;
+    }
+
+    public class FAQEntry
+    {
+        public int id { get; set; }
+        public string question { get; set; } = string.Empty;
+        public string answer { get; set; } = string.Empty;
+    }
+}
