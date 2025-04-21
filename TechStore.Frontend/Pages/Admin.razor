@@ -6,46 +6,87 @@
 
 <NavBar />
 
-<h3 class="admin-title">Add Product</h3>
-
-<div class="admin-container">
-    <div class="admin-form">
-        <label>Name:</label>
-        <input @bind="Name" placeholder="Product Name" />
-
-        <label>Description:</label>
-        <textarea @bind="Description" placeholder="Product Description"></textarea>
-
-        <label>Category:</label>
-        <input @bind="Category" placeholder="Product Category" />
-
-        <label>Rating (1-5):</label>
-        <input type="number" @bind="Rating" min="1" max="5" />
-
-        <label>Price:</label>
-        <input type="number" @bind="Price" step="0.01" />
-
-        <label>Top Product:</label>
-        <input type="checkbox" @bind="IsTop" />
-
-        <label>Image:</label>
-        <InputFile OnChange="HandleImageUpload" />
-
-        <button @onclick="SubmitProduct">Add Product</button>
-    </div>
+<div class="tab-nav">
+    <button
+        @onclick='() => CurrentTab = "products"'
+        class='@GetTabClass("products")'>
+      Products
+    </button>
+    <button
+        @onclick='() => CurrentTab = "faq"'
+        class='@GetTabClass("faq")'>
+      FAQ
+    </button>
 </div>
+
+
+@if (CurrentTab == "products")
+{
+    <h3 class="admin-title">Add Product</h3>
+
+    <div class="admin-container">
+        <div class="admin-form">
+            <label>Name:</label>
+            <input @bind="Name" placeholder="Product Name" />
+
+            <label>Description:</label>
+            <textarea @bind="Description" placeholder="Product Description"></textarea>
+
+            <label>Category:</label>
+            <input @bind="Category" placeholder="Product Category" />
+
+            <label>Rating (1-5):</label>
+            <input type="number" @bind="Rating" min="1" max="5" />
+
+            <label>Price:</label>
+            <input type="number" @bind="Price" step="0.01" />
+
+            <label>Top Product:</label>
+            <input type="checkbox" @bind="IsTop" />
+
+            <label>Image:</label>
+            <InputFile OnChange="HandleImageUpload" />
+
+            <button @onclick="SubmitProduct">Add Product</button>
+        </div>
+    </div>
+}
+else if (CurrentTab == "faq")
+{
+    <h3 class="admin-title">Add FAQ</h3>
+
+    <div class="admin-container">
+        <div class="admin-form">
+            <label>Question:</label>
+            <input @bind="FaqQuestion" placeholder="FAQ Question" />
+
+            <label>Answer:</label>
+            <textarea @bind="FaqAnswer" placeholder="FAQ Answer"></textarea>
+
+            <button @onclick="SubmitFAQ">Add FAQ</button>
+        </div>
+    </div>
+}
 
 <p class="admin-message">@Message</p>
 
 @code {
+    private string CurrentTab { get; set; } = "products";
+
+    // Product fields
     private string Name { get; set; } = string.Empty;
     private string Description { get; set; } = string.Empty;
     private string Category { get; set; } = string.Empty;
     private int Rating { get; set; } = 1;
     private double Price { get; set; } = 0.0;
     private bool IsTop { get; set; } = false;
-    private string Message { get; set; } = string.Empty;
     private IBrowserFile? SelectedImage { get; set; }
+
+    // FAQ fields
+    private string FaqQuestion { get; set; } = string.Empty;
+    private string FaqAnswer { get; set; } = string.Empty;
+
+    private string Message { get; set; } = string.Empty;
     private bool IsSuperuser { get; set; } = false;
 
     protected override async Task OnInitializedAsync()
@@ -71,12 +112,6 @@
 
     private async Task SubmitProduct()
     {
-        if (!IsSuperuser)
-        {
-            Message = "Unauthorized action.";
-            return;
-        }
-
         if (string.IsNullOrWhiteSpace(Name) || Price <= 0)
         {
             Message = "Product name and price are required!";
@@ -106,4 +141,29 @@
             ? "Product added successfully!" 
             : await response.Content.ReadAsStringAsync();
     }
+
+    private async Task SubmitFAQ()
+    {
+        if (string.IsNullOrWhiteSpace(FaqQuestion) || string.IsNullOrWhiteSpace(FaqAnswer))
+        {
+            Message = "FAQ question and answer required.";
+            return;
+        }
+
+        var faqEntry = new
+        {
+            Question = FaqQuestion,
+            Answer = FaqAnswer
+        };
+
+        var response = await Http.PostAsJsonAsync("faqs", faqEntry);
+        Message = response.IsSuccessStatusCode 
+            ? "FAQ added successfully!" 
+            : await response.Content.ReadAsStringAsync();
+
+        FaqQuestion = string.Empty;
+        FaqAnswer = string.Empty;
+    }
+
+    private string GetTabClass(string tab) => tab == CurrentTab ? "tab-active" : "tab-inactive";
 }

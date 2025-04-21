@@ -57,6 +57,57 @@ using (var connection = new SqliteConnection($"Data Source={productsDbPath}"))
     command.ExecuteNonQuery();
 }
 
+// Set up FAQ database
+string faqDbPath = "databases/faq.db";
+using (var faqConn = new SqliteConnection($"Data Source={faqDbPath}"))
+{
+    faqConn.Open();
+    var faqCmd = faqConn.CreateCommand();
+    faqCmd.CommandText = @"
+        CREATE TABLE IF NOT EXISTS faq (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            question TEXT NOT NULL,
+            answer   TEXT NOT NULL
+        );
+    ";
+    faqCmd.ExecuteNonQuery();
+
+    // Seed 10 generic FAQs if empty
+    var countCmd = faqConn.CreateCommand();
+    countCmd.CommandText = "SELECT COUNT(*) FROM faq";
+    if ((long)countCmd.ExecuteScalar() == 0)
+    {
+        var questions = new (string Q, string A)[]
+        {
+            ("What is Tech Store?", "An online marketplace for tech gadgets."),
+            ("How do I create an account?", "Click Sign Up and enter your details."),
+            ("Is my password secure?", "We store passwords securely, never in plain text."),
+            ("Can I return a product?", "Yes—see our Returns Policy on the site."),
+            ("How do I reset my password?", "Use the 'Forgot Password' link on login."),
+            ("What payment methods are accepted?", "Visa, MasterCard, PayPal, and more."),
+            ("How long does shipping take?", "Typically 3–5 business days."),
+            ("Do you ship internationally?", "Yes, we ship to over 50 countries."),
+            ("How do I contact support?", "Email support@techstore.com."),
+            ("Are there bulk discounts?", "Contact sales@techstore.com for details.")
+        };
+
+        using var tx = faqConn.BeginTransaction();
+        var insert = faqConn.CreateCommand();
+        insert.CommandText = "INSERT INTO faq (question,answer) VALUES (@q,@a)";
+        insert.Parameters.Add(new SqliteParameter("@q", ""));
+        insert.Parameters.Add(new SqliteParameter("@a", ""));
+        foreach (var (q, a) in questions)
+        {
+            insert.Parameters["@q"].Value = q;
+            insert.Parameters["@a"].Value = a;
+            insert.ExecuteNonQuery();
+        }
+        tx.Commit();
+    }
+}
+
+
+
 // Set up cart database table 
 
 string cartDbPath = "databases/cart.db";
@@ -640,8 +691,67 @@ app.MapPost("/profile/{username}", async (string username, HttpContext ctx) =>
     return Results.Ok("Profile saved.");
 });
 
+// 📖 GET 4 random FAQs (for the public site)
+app.MapGet("/faqs/random", () =>
+{
+    using var conn = new SqliteConnection($"Data Source={faqDbPath}");
+    conn.Open();
+    var cmd = conn.CreateCommand();
+    cmd.CommandText = "SELECT id,question,answer FROM faq ORDER BY RANDOM() LIMIT 4";
+    var list = new List<object>();
+    using var rdr = cmd.ExecuteReader();
+    while (rdr.Read())
+    {
+        list.Add(new {
+            id       = rdr.GetInt32(0),
+            question = rdr.GetString(1),
+            answer   = rdr.GetString(2)
+        });
+    }
+    return Results.Json(list);
+});
+
+// 📋 GET all FAQs (admin view)
+app.MapGet("/faqs", () =>
+{
+    using var conn = new SqliteConnection($"Data Source={faqDbPath}");
+    conn.Open();
+    var cmd = conn.CreateCommand();
+    cmd.CommandText = "SELECT id,question,answer FROM faq ORDER BY id";
+    var list = new List<object>();
+    using var rdr = cmd.ExecuteReader();
+    while (rdr.Read())
+    {
+        list.Add(new {
+            id       = rdr.GetInt32(0),
+            question = rdr.GetString(1),
+            answer   = rdr.GetString(2)
+        });
+    }
+    return Results.Json(list);
+});
+
+// ➕ POST new FAQ (superuser only)
+app.MapPost("/faqs", async (HttpContext http, FAQEntry faq) =>
+{
+
+    // insert into your faq.db
+    using var conn = new SqliteConnection($"Data Source={faqDbPath}");
+    conn.Open();
+
+    var cmd = conn.CreateCommand();
+    cmd.CommandText = "INSERT INTO faq (question, answer) VALUES (@q, @a)";
+    cmd.Parameters.AddWithValue("@q", faq.Question);
+    cmd.Parameters.AddWithValue("@a", faq.Answer);
+    cmd.ExecuteNonQuery();
+
+    return Results.Ok("FAQ added successfully.");
+});
+
+
 app.Run();
 
+public record FAQEntry(string Question, string Answer);
 public record AuthRequest(string Username, string Password);
 // Profile create/update request payload
 public record ProfileRequest(string Name, string Address, double WalletBalance, string? ImageBase64);
