@@ -38,7 +38,7 @@ else
     <div class="profile-container">
         <div class="profile-left">
             <div class="profile-header">
-                @if (!string.IsNullOrEmpty(profile.ImageBase64))
+                @if (!string.IsNullOrEmpty(profile.Image))
                 {
                     <img src="@GetProfileImageSrc()" alt="Profile Image" />
                 }
@@ -99,7 +99,6 @@ else
     {
         try
         {
-            // Add a cache-busting parameter to ensure we get fresh data
             profile = await Http.GetFromJsonAsync<ProfileData>($"profile/{Username}?t={DateTime.Now.Ticks}");
             notFound = profile is null;
         }
@@ -137,14 +136,7 @@ else
             if (response.IsSuccessStatusCode)
             {
                 message = "Profile saved!";
-                
-                // Option 1: If your API returns the updated profile
-                 profile = await response.Content.ReadFromJsonAsync<ProfileData>();
-                
-                // Option 2: Make a fresh request to get the updated profile
-                @* await LoadProfile(); *@
-                
-                // Update UI state
+                await LoadProfile();
                 notFound = false;
                 StateHasChanged();
             }
@@ -166,7 +158,7 @@ else
 
     private string GetProfileImageSrc()
     {
-        return $"data:image/png;base64,{profile?.ImageBase64}?t={DateTime.Now.Ticks}";
+         return $"data:image/png;base64,{profile?.Image}";
     }
 
     class ProfileData
@@ -174,7 +166,7 @@ else
         public string Uname { get; set; } = "";
         public string Name { get; set; } = "";
         public string Address { get; set; } = "";
-        public string? ImageBase64 { get; set; }
+        public string? Image { get; set; }
         public double WalletBalance { get; set; }
         public int ItemsBought { get; set; }
         public int TotalTransactions { get; set; }

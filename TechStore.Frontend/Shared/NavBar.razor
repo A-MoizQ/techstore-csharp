@@ -26,11 +26,10 @@
                     <a @onclick="@(() => NavigateTo("/admin"))" class="nav-link">Admin</a>
                 }
 
-                <!-- Profile Picture and Link -->
                 <a @onclick="@(() => NavigateTo($"/profile/{Username}"))" class="nav-link profile-link">
-                    @if (!string.IsNullOrEmpty(profileImage))
+                    @if (!string.IsNullOrEmpty(profile?.Image))
                     {
-                        <img src="data:image/png;base64,@profileImage" alt="Profile Image" class="profile-icon" />
+                        <img src="data:image/png;base64,@profile.Image" alt="Profile Image" class="profile-icon" />
                     }
                     else
                     {
@@ -65,7 +64,8 @@
 @code {
     private string Username = "";
     private bool isAuthenticated;
-    private string profileImage = "";  // Base64 string for the profile image
+    private ProfileData? profile;
+
     private void GoToCart()
     {
         Navigation.NavigateTo("/cart");
@@ -78,25 +78,20 @@
 
         if (isAuthenticated)
         {
-            Username = state.User.Identity.Name;  // Assuming the user's name is the username
-            await LoadProfileImage();  // Load the profile image if available
+            Username = state.User.Identity?.Name ?? "";
+            await LoadProfile();
         }
     }
 
-    private async Task LoadProfileImage()
+    private async Task LoadProfile()
     {
         try
         {
-            var profile = await Http.GetFromJsonAsync<ProfileData>($"profile/{Username}");
-            if (profile != null && !string.IsNullOrEmpty(profile.ImageBase64))
-            {
-                profileImage = profile.ImageBase64;  // Store the base64 encoded image
-            }
+            profile = await Http.GetFromJsonAsync<ProfileData>($"profile/{Username}");
         }
         catch (Exception ex)
         {
-            // Handle any error in fetching the profile data
-            Console.WriteLine($"Error loading profile image: {ex.Message}");
+            Console.WriteLine($"Error loading profile: {ex.Message}");
         }
     }
 
@@ -116,9 +111,10 @@
 
     class ProfileData
     {
-        public string Uname { get; set; }
-        public string Name { get; set; }
-        public string? ImageBase64 { get; set; } // Base64 encoded profile image
+        public string Uname { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Address { get; set; } = "";
+        public string? Image { get; set; }
         public double WalletBalance { get; set; }
         public int ItemsBought { get; set; }
         public int TotalTransactions { get; set; }
