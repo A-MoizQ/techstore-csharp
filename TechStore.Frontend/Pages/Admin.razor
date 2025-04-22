@@ -6,20 +6,6 @@
 
 <NavBar />
 
-<div class="tab-nav">
-    <button
-        @onclick='() => CurrentTab = "products"'
-        class='@GetTabClass("products")'>
-      Products
-    </button>
-    <button
-        @onclick='() => CurrentTab = "faq"'
-        class='@GetTabClass("faq")'>
-      FAQ
-    </button>
-</div>
-
-
 @if (CurrentTab == "products")
 {
     <h3 class="admin-title">Add Product</h3>
@@ -73,7 +59,6 @@ else if (CurrentTab == "faq")
 @code {
     private string CurrentTab { get; set; } = "products";
 
-    // Product fields
     private string Name { get; set; } = string.Empty;
     private string Description { get; set; } = string.Empty;
     private string Category { get; set; } = string.Empty;
@@ -82,7 +67,6 @@ else if (CurrentTab == "faq")
     private bool IsTop { get; set; } = false;
     private IBrowserFile? SelectedImage { get; set; }
 
-    // FAQ fields
     private string FaqQuestion { get; set; } = string.Empty;
     private string FaqAnswer { get; set; } = string.Empty;
 
@@ -164,6 +148,4 @@ else if (CurrentTab == "faq")
         FaqQuestion = string.Empty;
         FaqAnswer = string.Empty;
     }
-
-    private string GetTabClass(string tab) => tab == CurrentTab ? "tab-active" : "tab-inactive";
 }

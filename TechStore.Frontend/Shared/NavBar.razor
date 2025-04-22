@@ -24,6 +24,18 @@
                 @if (authContext.User.IsInRole("superuser"))
                 {
                     <a @onclick="@(() => NavigateTo("/admin"))" class="nav-link">Admin</a>
+
+                    @if (IsOnAdminPage)
+                    {
+                        <button @onclick='() => SetAdminTab("products")'
+                                class='nav-link @(CurrentTab == "products" ? "tab-active" : "tab-inactive")'>
+                            Products
+                        </button>
+                        <button @onclick='() => SetAdminTab("faq")'
+                                class='nav-link @(CurrentTab == "faq" ? "tab-active" : "tab-inactive")'>
+                            FAQ
+                        </button>
+                    }
                 }
 
                 <a @onclick="@(() => NavigateTo($"/profile/{Username}"))" class="nav-link profile-link">
@@ -66,13 +78,14 @@
     private bool isAuthenticated;
     private ProfileData? profile;
 
-    private void GoToCart()
-    {
-        Navigation.NavigateTo("/cart");
-    }
+    private bool IsOnAdminPage = false;
+    private string CurrentTab = "products";
 
     protected override async Task OnInitializedAsync()
     {
+        Navigation.LocationChanged += HandleLocationChanged;
+        CheckIfAdminPage();
+
         var state = await AuthStateProvider.GetAuthenticationStateAsync();
         isAuthenticated = state.User.Identity?.IsAuthenticated ?? false;
 
@@ -81,6 +94,35 @@
             Username = state.User.Identity?.Name ?? "";
             await LoadProfile();
         }
+    }
+
+    private void HandleLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        CheckIfAdminPage();
+        StateHasChanged();
+    }
+
+    private void CheckIfAdminPage()
+    {
+        IsOnAdminPage = Navigation.Uri.Contains("/admin", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void NavigateTo(string path)
+    {
+        Navigation.NavigateTo(path, forceLoad: false);
+    }
+
+    private void GoToCart()
+    {
+        Navigation.NavigateTo("/cart");
+    }
+
+    private async Task Logout()
+    {
+        await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "username");
+        await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "isLoggedIn");
+        await AuthStateProvider.MarkUserAsLoggedOut();
+        Navigation.NavigateTo("/loginSignup", forceLoad: false);
     }
 
     private async Task LoadProfile()
@@ -95,18 +137,10 @@
         }
     }
 
-    private async Task Logout()
+    private void SetAdminTab(string tab)
     {
-        await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "username");
-        await JSRuntime.InvokeVoidAsync("localStorage.removeItem", "isLoggedIn");
-
-        await AuthStateProvider.MarkUserAsLoggedOut();
-        Navigation.NavigateTo("/loginSignup", forceLoad: false);
-    }
-
-    private void NavigateTo(string path)
-    {
-        Navigation.NavigateTo(path, forceLoad: false);
+        CurrentTab = tab;
+        Navigation.NavigateTo("/admin", forceLoad: false);
     }
 
     class ProfileData
