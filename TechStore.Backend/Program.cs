@@ -126,6 +126,24 @@ using (var connection = new SqliteConnection($"Data Source={cartDbPath}"))
     command.ExecuteNonQuery();
 }
 
+// setup wishlist db
+string wishlistDbPath = "databases/wishlist.db";
+using (var connection = new SqliteConnection($"Data Source={wishlistDbPath}"))
+{
+    connection.Open();
+    var command = connection.CreateCommand();
+    command.CommandText = @"
+        CREATE TABLE IF NOT EXISTS wishlist (
+            wishlist_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            uname TEXT NOT NULL,
+            product_id INTEGER NOT NULL
+        );
+    ";
+    command.ExecuteNonQuery();
+}
+
+
+
 // User Profiles DB
 string profilesDbPath = "databases/user_profiles.db";
 using (var conn = new SqliteConnection($"Data Source={profilesDbPath}"))
@@ -602,9 +620,6 @@ app.MapGet("/cart/{uname}", async (string uname) =>
 });
 
 
-
-
-
 // clear the cart (by option or at checkout)
 app.MapDelete("/cart/clear/{uname}",async (string uname) =>
 {
@@ -670,6 +685,226 @@ app.MapGet("/profile/{username}", (string username) =>
     return Results.Json(result);
 });
 
+
+// Get all wishlist items for a user by their username
+app.MapGet("/wishlist/{uname}", async (string uname) =>
+{
+    var items = new List<object>();
+
+    var alias = $"prod_{Guid.NewGuid().ToString("N").Substring(0, 6)}";
+
+    await using var connection = new SqliteConnection($"Data Source={wishlistDbPath}");
+    await connection.OpenAsync();
+
+    // Attach products DB
+    await using (var attachCmd = connection.CreateCommand())
+    {
+        attachCmd.CommandText = $"ATTACH DATABASE '{productsDbPath}' AS {alias};";
+        await attachCmd.ExecuteNonQueryAsync();
+    }
+
+    // Query the wishlist with the attached alias
+    await using (var command = connection.CreateCommand())
+    {
+        command.CommandText = $@"
+            SELECT 
+                w.product_id,
+                p.name AS product_name,
+                p.image AS product_image,
+                p.price AS product_price
+            FROM wishlist w
+            JOIN {alias}.products p ON w.product_id = p.id
+            WHERE LOWER(w.uname) = LOWER(@uname);";
+        command.Parameters.AddWithValue("@uname", uname);
+
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            items.Add(new
+            {
+                ProductId = reader.GetInt32(0),
+                ProductName = reader.GetString(1),
+                ProductImage = reader.IsDBNull(2) ? null : Convert.ToBase64String((byte[])reader["product_image"]),
+                ProductPrice = reader.IsDBNull(3) ? 0.0 : reader.GetDouble(3)
+            });
+        }
+    }
+
+    // Detach products DB to avoid exceeding attached database limit
+    await using (var detachCmd = connection.CreateCommand())
+    {
+        detachCmd.CommandText = $"DETACH DATABASE {alias};";
+        await detachCmd.ExecuteNonQueryAsync();
+    }
+
+    return Results.Json(items);
+});
+
+
+//add to wishlist
+app.MapPost("/wishlist", async (HttpContext context) =>
+{
+    var jsonDoc = await JsonDocument.ParseAsync(context.Request.Body);
+    var root = jsonDoc.RootElement;
+
+    if (!root.TryGetProperty("uname", out var unameProp) ||
+        !root.TryGetProperty("productId", out var productIdProp))
+    {
+        return Results.BadRequest("Missing one or more required fields.");
+    }
+
+    string uname = unameProp.GetString()?.ToLower() ?? "";
+    int productId = productIdProp.GetInt32();
+
+    using (var userConnection = new SqliteConnection($"Data Source={usersDbPath}"))
+    {
+        await userConnection.OpenAsync();
+        using var userCheckCmd = userConnection.CreateCommand();
+        userCheckCmd.CommandText = "SELECT COUNT(*) FROM users WHERE uname = @uname";
+        userCheckCmd.Parameters.AddWithValue("@uname", uname);
+        var result = await userCheckCmd.ExecuteScalarAsync();
+        if ((long)result == 0)
+        {
+            return Results.BadRequest("User does not exist.");
+        }
+    }
+
+    using (var connection = new SqliteConnection($"Data Source={wishlistDbPath}"))
+    {
+        await connection.OpenAsync();
+
+        using var checkCmd = connection.CreateCommand();
+        checkCmd.CommandText = @"
+            SELECT COUNT(*) FROM wishlist
+            WHERE uname = @uname AND product_id = @product_id";
+        checkCmd.Parameters.AddWithValue("@uname", uname);
+        checkCmd.Parameters.AddWithValue("@product_id", productId);
+
+        var exists = (long)(await checkCmd.ExecuteScalarAsync()) > 0;
+        if (exists)
+        {
+            return Results.Ok("Item is already in wishlist.");
+        }
+
+        using var insertCmd = connection.CreateCommand();
+        insertCmd.CommandText = @"
+            INSERT INTO wishlist (uname, product_id)
+            VALUES (@uname, @product_id)";
+        insertCmd.Parameters.AddWithValue("@uname", uname);
+        insertCmd.Parameters.AddWithValue("@product_id", productId);
+
+        try
+        {
+            await insertCmd.ExecuteNonQueryAsync();
+            return Results.Ok("Item added to wishlist.");
+        }
+        catch (Exception ex)
+        {
+            return Results.Problem($"Failed to add item to wishlist: {ex.Message}");
+        }
+    }
+});
+
+//remove items from wishlist and add them to cart
+app.MapPost("/wishlist/checkout/{uname}", async (string uname) =>
+{
+    var wishlistItems = new List<int>(); // product IDs
+
+    using (var connection = new SqliteConnection($"Data Source={wishlistDbPath}"))
+    {
+        await connection.OpenAsync();
+
+        using var selectCmd = connection.CreateCommand();
+        selectCmd.CommandText = "SELECT product_id FROM wishlist WHERE uname = @uname";
+        selectCmd.Parameters.AddWithValue("@uname", uname.ToLower());
+
+        using var reader = await selectCmd.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            wishlistItems.Add(reader.GetInt32(0));
+        }
+    }
+
+    if (wishlistItems.Count == 0)
+    {
+        return Results.Ok("No wishlist items to add to cart.");
+    }
+
+    using (var cartConnection = new SqliteConnection($"Data Source={cartDbPath}"))
+    {
+        await cartConnection.OpenAsync();
+        foreach (var productId in wishlistItems)
+        {
+            using var checkCmd = cartConnection.CreateCommand();
+            checkCmd.CommandText = "SELECT quantity FROM cart WHERE uname = @uname AND product_id = @product_id";
+            checkCmd.Parameters.AddWithValue("@uname", uname);
+            checkCmd.Parameters.AddWithValue("@product_id", productId);
+
+            var existingQuantityObj = await checkCmd.ExecuteScalarAsync();
+
+            if (existingQuantityObj != null)
+            {
+                int newQuantity = Convert.ToInt32(existingQuantityObj) + 1;
+
+                using var updateCmd = cartConnection.CreateCommand();
+                updateCmd.CommandText = @"
+                    UPDATE cart SET quantity = @newQuantity
+                    WHERE uname = @uname AND product_id = @product_id";
+                updateCmd.Parameters.AddWithValue("@newQuantity", newQuantity);
+                updateCmd.Parameters.AddWithValue("@uname", uname);
+                updateCmd.Parameters.AddWithValue("@product_id", productId);
+                await updateCmd.ExecuteNonQueryAsync();
+            }
+            else
+            {
+                using var insertCmd = cartConnection.CreateCommand();
+                insertCmd.CommandText = @"
+                    INSERT INTO cart (uname, product_id, quantity)
+                    VALUES (@uname, @product_id, 1)";
+                insertCmd.Parameters.AddWithValue("@uname", uname);
+                insertCmd.Parameters.AddWithValue("@product_id", productId);
+                await insertCmd.ExecuteNonQueryAsync();
+            }
+        }
+    }
+
+    using (var connection = new SqliteConnection($"Data Source={wishlistDbPath}"))
+    {
+        await connection.OpenAsync();
+        using var deleteCmd = connection.CreateCommand();
+        deleteCmd.CommandText = "DELETE FROM wishlist WHERE uname = @uname";
+        deleteCmd.Parameters.AddWithValue("@uname", uname.ToLower());
+        await deleteCmd.ExecuteNonQueryAsync();
+    }
+
+    return Results.Ok($"{wishlistItems.Count} wishlist item(s) moved to cart and wishlist cleared.");
+});
+
+// Remove a specific item from the wishlist
+app.MapDelete("/wishlist/remove/{uname}/{productId}", async (string uname, int productId) =>
+{
+    using var connection = new SqliteConnection($"Data Source={wishlistDbPath}");
+    await connection.OpenAsync();
+
+    using var deleteCmd = connection.CreateCommand();
+    deleteCmd.CommandText = @"
+        DELETE FROM wishlist
+        WHERE uname = @uname AND product_id = @product_id";
+    deleteCmd.Parameters.AddWithValue("@uname", uname.ToLower());
+    deleteCmd.Parameters.AddWithValue("@product_id", productId);
+
+    try
+    {
+        int affected = await deleteCmd.ExecuteNonQueryAsync();
+        return affected > 0
+            ? Results.Ok("Item removed from wishlist.")
+            : Results.NotFound("Item not found in wishlist.");
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Failed to remove item from wishlist: {ex.Message}");
+    }
+});
 
 // POST to create profile if not exists
 app.MapPost("/profile/{username}", async (string username, HttpContext ctx) =>
