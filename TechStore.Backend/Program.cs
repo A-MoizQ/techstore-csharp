@@ -444,156 +444,165 @@ app.MapPost("/cart", async (HttpContext context) =>
     int productId = productIdProp.GetInt32();
     int quantity = quantityProp.GetInt32();
 
-    // Check if the user exists in the users database
-    using var userConnection = new SqliteConnection($"Data Source={usersDbPath}");
-    userConnection.Open();
-    var userCheckCmd = userConnection.CreateCommand();
-    userCheckCmd.CommandText = "SELECT COUNT(*) FROM users WHERE uname = @uname";
-    userCheckCmd.Parameters.AddWithValue("@uname", uname);
-    long userExists = (long)userCheckCmd.ExecuteScalar();
-    userConnection.Close();
-
-    if (userExists == 0)
+    // Check if the user exists
+    using (var userConnection = new SqliteConnection($"Data Source={usersDbPath}"))
     {
-        return Results.BadRequest("User does not exist.");
+        await userConnection.OpenAsync();
+        using var userCheckCmd = userConnection.CreateCommand();
+        userCheckCmd.CommandText = "SELECT COUNT(*) FROM users WHERE uname = @uname";
+        userCheckCmd.Parameters.AddWithValue("@uname", uname);
+        var result = await userCheckCmd.ExecuteScalarAsync();
+        if ((long)result == 0)
+        {
+            return Results.BadRequest("User does not exist.");
+        }
     }
 
-    // Use the cart database connection (ensuring FK constraints remain intact)
-    using var connection = new SqliteConnection($"Data Source={cartDbPath}");
-    connection.Open();
-
-    // Check if an entry already exists for this user and product
-    var checkCmd = connection.CreateCommand();
-    checkCmd.CommandText = @"
-        SELECT quantity FROM cart
-        WHERE uname = @uname AND product_id = @product_id";
-    checkCmd.Parameters.AddWithValue("@uname", uname);
-    checkCmd.Parameters.AddWithValue("@product_id", productId);
-
-    var existingQuantityObj = checkCmd.ExecuteScalar();
-
-    if (existingQuantityObj != null)
+    // Add to cart logic
+    using (var connection = new SqliteConnection($"Data Source={cartDbPath}"))
     {
-        int existingQuantity = Convert.ToInt32(existingQuantityObj);
-        int newQuantity = existingQuantity + quantity;
+        await connection.OpenAsync();
 
-        if (newQuantity <= 0)
+        using var checkCmd = connection.CreateCommand();
+        checkCmd.CommandText = @"
+            SELECT quantity FROM cart
+            WHERE uname = @uname AND product_id = @product_id";
+        checkCmd.Parameters.AddWithValue("@uname", uname);
+        checkCmd.Parameters.AddWithValue("@product_id", productId);
+
+        var existingQuantityObj = await checkCmd.ExecuteScalarAsync();
+
+        if (existingQuantityObj != null)
         {
-            // Remove the item if the new quantity is zero or negative
-            var deleteCmd = connection.CreateCommand();
-            deleteCmd.CommandText = @"
-                DELETE FROM cart
-                WHERE uname = @uname AND product_id = @product_id";
-            deleteCmd.Parameters.AddWithValue("@uname", uname);
-            deleteCmd.Parameters.AddWithValue("@product_id", productId);
-            try
+            int existingQuantity = Convert.ToInt32(existingQuantityObj);
+            int newQuantity = existingQuantity + quantity;
+
+            if (newQuantity <= 0)
             {
-                deleteCmd.ExecuteNonQuery();
-                connection.Close();
-                return Results.Ok("Cart item removed as quantity reached zero or below.");
+                using var deleteCmd = connection.CreateCommand();
+                deleteCmd.CommandText = @"
+                    DELETE FROM cart
+                    WHERE uname = @uname AND product_id = @product_id";
+                deleteCmd.Parameters.AddWithValue("@uname", uname);
+                deleteCmd.Parameters.AddWithValue("@product_id", productId);
+
+                try
+                {
+                    await deleteCmd.ExecuteNonQueryAsync();
+                    return Results.Ok("Cart item removed as quantity reached zero or below.");
+                }
+                catch (Exception ex)
+                {
+                    return Results.Problem($"Failed to remove cart item: {ex.Message}");
+                }
             }
-            catch (Exception ex)
+            else
             {
-                connection.Close();
-                return Results.Problem($"Failed to remove cart item: {ex.Message}");
+                using var updateCmd = connection.CreateCommand();
+                updateCmd.CommandText = @"
+                    UPDATE cart
+                    SET quantity = @newQuantity
+                    WHERE uname = @uname AND product_id = @product_id";
+                updateCmd.Parameters.AddWithValue("@newQuantity", newQuantity);
+                updateCmd.Parameters.AddWithValue("@uname", uname);
+                updateCmd.Parameters.AddWithValue("@product_id", productId);
+
+                try
+                {
+                    await updateCmd.ExecuteNonQueryAsync();
+                    return Results.Ok("Cart item quantity updated.");
+                }
+                catch (Exception ex)
+                {
+                    return Results.Problem($"Failed to update cart item: {ex.Message}");
+                }
             }
         }
         else
         {
-            // Update the cart with the new quantity
-            var updateCmd = connection.CreateCommand();
-            updateCmd.CommandText = @"
-                UPDATE cart
-                SET quantity = @newQuantity
-                WHERE uname = @uname AND product_id = @product_id";
-            updateCmd.Parameters.AddWithValue("@newQuantity", newQuantity);
-            updateCmd.Parameters.AddWithValue("@uname", uname);
-            updateCmd.Parameters.AddWithValue("@product_id", productId);
+            using var insertCmd = connection.CreateCommand();
+            insertCmd.CommandText = @"
+                INSERT INTO cart (uname, product_id, quantity)
+                VALUES (@uname, @product_id, @quantity)";
+            insertCmd.Parameters.AddWithValue("@uname", uname);
+            insertCmd.Parameters.AddWithValue("@product_id", productId);
+            insertCmd.Parameters.AddWithValue("@quantity", quantity);
+
             try
             {
-                updateCmd.ExecuteNonQuery();
-                connection.Close();
-                return Results.Ok("Cart item quantity updated.");
+                await insertCmd.ExecuteNonQueryAsync();
+                return Results.Ok("Item added to cart.");
             }
             catch (Exception ex)
             {
-                connection.Close();
-                return Results.Problem($"Failed to update cart item: {ex.Message}");
+                return Results.Problem($"Failed to add item to cart: {ex.Message}");
             }
         }
     }
-    else
-    {
-        // Insert a new cart item
-        var insertCmd = connection.CreateCommand();
-        insertCmd.CommandText = @"
-            INSERT INTO cart (uname, product_id, quantity)
-            VALUES (@uname, @product_id, @quantity)";
-        insertCmd.Parameters.AddWithValue("@uname", uname);
-        insertCmd.Parameters.AddWithValue("@product_id", productId);
-        insertCmd.Parameters.AddWithValue("@quantity", quantity);
-
-        try
-        {
-            insertCmd.ExecuteNonQuery();
-            connection.Close();
-            return Results.Ok("Item added to cart.");
-        }
-        catch (Exception ex)
-        {
-            connection.Close();
-            return Results.Problem($"Failed to add item to cart: {ex.Message}");
-        }
-    }
 });
+
 
 
 // Get all cart items for a user by their username
-app.MapGet("/cart/{uname}",async (string uname) =>
+app.MapGet("/cart/{uname}", async (string uname) =>
 {
-    // Open connection to the cart database
-    using var connection = new SqliteConnection($"Data Source={cartDbPath}");
-    connection.Open();
-
-    // Attach the products database to join product details with cart items
-    var attachCmd = connection.CreateCommand();
-    attachCmd.CommandText = $"ATTACH DATABASE '{productsDbPath}' AS prod;";
-    attachCmd.ExecuteNonQuery();
-
-    // Retrieve cart items with product details
-    var command = connection.CreateCommand();
-    command.CommandText = @"
-        SELECT 
-            c.cart_id,
-            c.product_id,
-            p.name AS product_name,
-            p.image AS product_image,
-            p.price AS product_price,
-            c.quantity
-        FROM cart c
-        JOIN prod.products p ON c.product_id = p.id
-        WHERE LOWER(c.uname) = LOWER(@uname);";
-    command.Parameters.AddWithValue("@uname", uname);
-
     var items = new List<object>();
-    using var reader = command.ExecuteReader();
-    while (reader.Read())
+
+    var alias = $"prod_{Guid.NewGuid().ToString("N").Substring(0, 6)}";
+
+    await using var connection = new SqliteConnection($"Data Source={cartDbPath}");
+    await connection.OpenAsync();
+
+    // Attach products DB
+    await using (var attachCmd = connection.CreateCommand())
     {
-        items.Add(new
-        {
-            // Map columns to properties expected by Cart.razor
-            CartId = reader.GetInt32(0),
-            ProductId = reader.GetInt32(1),
-            ProductName = reader.GetString(2),
-            ProductImage = reader.IsDBNull(3) ? null : Convert.ToBase64String((byte[])reader[3]),
-            ProductPrice = reader.IsDBNull(4) ? 0.0 : reader.GetDouble(4),
-            Quantity = reader.GetInt32(5)
-        });
+        attachCmd.CommandText = $"ATTACH DATABASE '{productsDbPath}' AS {alias};";
+        await attachCmd.ExecuteNonQueryAsync();
     }
 
-    connection.Close();
+    // Query the cart with the attached alias
+    await using (var command = connection.CreateCommand())
+    {
+        command.CommandText = $@"
+            SELECT 
+                c.cart_id,
+                c.product_id,
+                p.name AS product_name,
+                p.image AS product_image,
+                p.price AS product_price,
+                c.quantity
+            FROM cart c
+            JOIN {alias}.products p ON c.product_id = p.id
+            WHERE LOWER(c.uname) = LOWER(@uname);";
+        command.Parameters.AddWithValue("@uname", uname);
+
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            items.Add(new
+            {
+                CartId = reader.GetInt32(0),
+                ProductId = reader.GetInt32(1),
+                ProductName = reader.GetString(2),
+                ProductImage = reader.IsDBNull(3) ? null : Convert.ToBase64String((byte[])reader["product_image"]),
+                ProductPrice = reader.IsDBNull(4) ? 0.0 : reader.GetDouble(4),
+                Quantity = reader.GetInt32(5)
+            });
+        }
+    }
+
+    // Detach products DB to avoid hitting the 10-database limit
+    await using (var detachCmd = connection.CreateCommand())
+    {
+        detachCmd.CommandText = $"DETACH DATABASE {alias};";
+        await detachCmd.ExecuteNonQueryAsync();
+    }
+
     return Results.Json(items);
 });
+
+
+
 
 
 // clear the cart (by option or at checkout)
