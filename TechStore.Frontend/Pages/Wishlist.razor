@@ -1,0 +1,125 @@
+@page "/wishlist"
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject CustomAuthStateProvider AuthStateProvider
+@using Microsoft.AspNetCore.Components.Authorization
+@using System.Net.Http.Json
+
+<NavBar />
+
+<div class="cart-container">
+    <div class="cart-left">
+        <h2 class="cart-title">Wishlist</h2>
+
+        @if (!IsAuthenticated)
+        {
+            <p class="empty-msg">Please log in to view your wishlist.</p>
+        }
+        else if (WishlistItems.Count == 0)
+        {
+            <p class="empty-msg">No items in your wishlist.</p>
+        }
+        else
+        {
+            @foreach (var item in WishlistItems)
+            {
+                <div class="cart-item">
+                    <div class="product-image">
+                        @if (!string.IsNullOrEmpty(item.ProductImage))
+                        {
+                            <img src="data:image/png;base64,@item.ProductImage" />
+                        }
+                        else
+                        {
+                            <div class="image-placeholder">Image</div>
+                        }
+                    </div>
+
+                    <div class="product-info">
+                        <h3 class="product-name">@item.ProductName</h3>
+                        <p class="product-price">@item.ProductPrice Pkr</p>
+                        <button class="btn remove-btn" @onclick="() => RemoveItem(item.ProductId)">Remove</button>
+                        <button class="view-btn">View Product</button>
+                    </div>
+                </div>
+            }
+
+            <button class="btn checkout-btn" @onclick="AddToCart">
+                Add to Cart
+            </button>
+        }
+    </div>
+
+    <div class="cart-right">
+        <h2 class="wallet-title">Wishlist Summary</h2>
+        <p class="wallet-balance">Total Value: @TotalPrice rs</p>
+    </div>
+</div>
+
+@code {
+    private List<WishlistItem> WishlistItems { get; set; } = new();
+    private double TotalPrice => WishlistItems.Sum(x => x.ProductPrice);
+    private string CurrentUser = string.Empty;
+    private bool IsAuthenticated = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity?.IsAuthenticated == true)
+        {
+            IsAuthenticated = true;
+            CurrentUser = user.Identity.Name ?? "guest";
+            await LoadWishlist();
+        }
+        else
+        {
+            Navigation.NavigateTo("/login", true);
+        }
+    }
+
+    private async Task LoadWishlist()
+    {
+        var result = await Http.GetFromJsonAsync<List<WishlistItem>>($"wishlist/{CurrentUser}");
+        if (result != null)
+            WishlistItems = result;
+    }
+
+    private async Task RemoveItem(int productId)
+    {
+        var response = await Http.DeleteAsync($"/wishlist/remove/{CurrentUser}/{productId}");
+        if (response.IsSuccessStatusCode)
+        {
+            await LoadWishlist(); // Refresh after removal
+        }
+        else
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"Failed to remove item: {error}");
+        }
+    }
+
+    private async Task AddToCart()
+    {
+        var response = await Http.PostAsync($"/wishlist/checkout/{CurrentUser}", null);
+        if (response.IsSuccessStatusCode)
+        {
+            await LoadWishlist(); // Refresh to show cleared wishlist
+            Navigation.NavigateTo("/cart"); // Optional: redirect to cart
+        }
+        else
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"Checkout failed: {error}");
+        }
+    }
+
+    public class WishlistItem
+    {
+        public int ProductId { get; set; }
+        public string ProductName { get; set; } = "";
+        public string? ProductImage { get; set; }
+        public double ProductPrice { get; set; }
+    }
+}

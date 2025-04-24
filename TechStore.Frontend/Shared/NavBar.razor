@@ -20,6 +20,7 @@
                 <a @onclick="@(() => NavigateTo("/topselling"))" class="nav-link">Top Selling</a>
                 <a @onclick="@(() => NavigateTo("/products"))" class="nav-link">Products</a>
                 <a @onclick="@(() => NavigateTo("/faqs"))" class="nav-link">FAQs</a>
+                <a @onclick="@(() => NavigateTo("/wishlist"))" class="nav-link">Wishlist</a>
 
                 @if (authContext.User.IsInRole("superuser"))
                 {

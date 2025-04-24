@@ -275,6 +275,8 @@
     overflow-x: auto;
     scroll-behavior: smooth;
     max-width: 800px;
+    overflow-y: hidden;
+    overflow-x: hidden;
 }
 
 .product-card {

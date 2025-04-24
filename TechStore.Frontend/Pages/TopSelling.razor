@@ -4,6 +4,7 @@
 @inject HttpClient Http
 @inject NavigationManager Navigation
 @inject AuthenticationStateProvider AuthProvider
+@inject IJSRuntime JS
 
 <NavBar />
 
@@ -23,8 +24,8 @@
     else
     {
         <div class="product-container">
-            <button class="scroll-btn left" @onclick="ScrollLeft">⬅</button>
-            <div class="product-list">
+            <button class="scroll-btn left" @onclick="ScrollLeft">◀</button>
+            <div class="product-list" @ref="productListRef">
                 @foreach (var product in products)
                 {
                     <div class="product-card">
@@ -36,11 +37,12 @@
                         <p class="product-description">@product.description</p>
                         <p class="product-price">@($"{product.price} PKR")</p>
                         <p class="product-rating">@RenderStars(product.rating)</p>
-                        <button class="add-to-cart">Add to Cart</button>
+                        <button class="btn add-to-cart-btn" @onclick="() => AddToCart(product.id)">Add to Cart</button>
+                        <button class="btn add-to-cart-btn" @onclick="() => AddToWishlist(product.id)">Add to Wishlist</button>
                     </div>
                 }
             </div>
-            <button class="scroll-btn right" @onclick="ScrollRight">➡</button>
+            <button class="scroll-btn right" @onclick="ScrollRight">▶</button>
         </div>
     }
 </div>
@@ -48,7 +50,8 @@
 @code {
     private List<Product> products = new();
     private string errorMessage = string.Empty;
-    private int currentIndex = 0;
+    private ElementReference productListRef;
+    private const int scrollAmount = 300;
 
     protected override async Task OnInitializedAsync()
     {
@@ -68,26 +71,71 @@
             errorMessage = ex.Message;
         }
     }
+    private async Task AddToWishlist(int productId)
+    {
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (!user.Identity?.IsAuthenticated ?? true)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        var payload = new
+        {
+            uname = user.Identity.Name,
+            productId = productId
+        };
+
+        var response = await Http.PostAsJsonAsync("/wishlist", payload);
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"Add to wishlist failed: {error}");
+        }
+    }
+
+
+    private async Task AddToCart(int productId)
+    {
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (!user.Identity?.IsAuthenticated ?? true)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        var payload = new
+        {
+            uname = user.Identity.Name,
+            productId = productId,
+            quantity = 1
+        };
+
+        var response = await Http.PostAsJsonAsync("/cart", payload);
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            Console.WriteLine($"Add to cart failed: {error}");
+        }
+    }
 
     private string RenderStars(int rating)
     {
         return new string('⭐', rating) + new string('☆', 5 - rating);
     }
 
-    private void ScrollLeft()
+    private async Task ScrollLeft()
     {
-        if (currentIndex > 0)
-        {
-            currentIndex -= 2;
-        }
+        await JS.InvokeVoidAsync("scrollElementHorizontally", productListRef, -scrollAmount);
     }
 
-    private void ScrollRight()
+    private async Task ScrollRight()
     {
-        if (currentIndex < products.Count - 2)
-        {
-            currentIndex += 2;
-        }
+        await JS.InvokeVoidAsync("scrollElementHorizontally", productListRef, scrollAmount);
     }
 
     public class Product

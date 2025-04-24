@@ -113,12 +113,46 @@ else
                 <p>@($"{p.Price} PKR")</p>
                 <p><strong>Description:</strong><br />@p.Description</p>
                 <button class="btn add-to-cart-btn" @onclick="() => AddToCart(p.Id)">Add to cart</button>
+                <button class="btn add-to-cart-btn" @onclick="() => AddToWishlist(p.Id)">Add to Wishlist</button>
                 <button class="btn view-product-btn" @onclick='() => Navigation.NavigateTo($"/product/{p.Id}")'>
                     View Product
                 </button>
             </div>
         </div>;
     };
+
+    private async Task AddToWishlist(int productId)
+    {
+        var authState = await AuthProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (!user.Identity?.IsAuthenticated ?? true)
+        {
+            Navigation.NavigateTo("/loginSignup");
+            return;
+        }
+
+        var payload = new
+        {
+            uname = user.Identity.Name,
+            productId = productId
+        };
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("/wishlist", payload);
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"Failed to add to wishlist: {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error adding to wishlist: {ex.Message}");
+        }
+    }
+
 
     private async Task AddToCart(int productId)
     {
