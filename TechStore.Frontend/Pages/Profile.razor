@@ -18,19 +18,31 @@ else if (!isAuthenticated)
 }
 else if (notFound)
 {
-    <div class="profile-form-container">
-        <h3>Create Your Profile</h3>
-        <EditForm Model="profileForm" OnValidSubmit="SaveProfile">
-            <InputText @bind-Value="profileForm.Name" placeholder="Full Name" /><br />
-            <InputText @bind-Value="profileForm.Address" placeholder="Address" /><br />
-            <InputNumber @bind-Value="profileForm.WalletBalance" placeholder="Wallet Balance" /><br />
-            <InputFile OnChange="OnImageSelected" /><br />
-            <button type="submit">Save Profile</button>
-        </EditForm>
-        @if (!string.IsNullOrEmpty(message))
-        {
-            <p>@message</p>
-        }
+    <div class="admin-container">
+        <div class="admin-form">
+            <h3 class="admin-title">Create Your Profile</h3>
+
+            <EditForm Model="profileForm" OnValidSubmit="SaveProfile">
+                <label>Full Name:</label>
+                <InputText @bind-Value="profileForm.Name" class="input-text" />
+
+                <label>Address:</label>
+                <InputText @bind-Value="profileForm.Address" class="input-text" />
+
+                <label>Wallet Balance:</label>
+                <InputNumber @bind-Value="profileForm.WalletBalance" class="input-text" />
+
+                <label>Profile Image:</label>
+                <InputFile OnChange="OnImageSelected" />
+
+                <button type="submit">Save Profile</button>
+            </EditForm>
+
+            @if (!string.IsNullOrEmpty(message))
+            {
+                <p class="admin-message">@message</p>
+            }
+        </div>
     </div>
 }
 else
