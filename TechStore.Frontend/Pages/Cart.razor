@@ -9,7 +9,7 @@
 
 <div class="cart-container">
     <div class="cart-left">
-        <h2 class="cart-title">Wishlist / Checkout</h2>
+        <h2 class="cart-title">Cart</h2>
 
         @if (!IsAuthenticated)
         {
@@ -132,7 +132,7 @@ private async Task ProceedToCheckout()
         StateHasChanged();
 
         // Navigate after successful clear
-        Navigation.NavigateTo("/checkout");
+        Navigation.NavigateTo("/cart");
     }
     else
     {
