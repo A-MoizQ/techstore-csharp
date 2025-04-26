@@ -1,34 +1,45 @@
 @page "/reviews"
 @inject HttpClient Http
 
-<h3 class="section-title">Product Reviews</h3>
+<NavBar />
 
-@if (Reviewsarr == null)
-{
-    <p>Loading reviews...</p>
-}
-else if (Reviewsarr.Count == 0)
-{
-    <p>No reviews available yet.</p>
-}
-else
-{
-    <div class="reviews-grid">
-        @foreach (var review in Reviewsarr)
-        {
-            <div class="review-card">
-                <h4>@review.ProductName</h4>
-                <video width="320" height="240" controls>
-                    <source src="@review.VideoUrl" type="video/mp4" />
-                    Your browser does not support the video tag.
-                </video>
-            </div>
-        }
-    </div>
-}
+<div class="reviews-page">
+    <h3 class="section-title">Product Reviews</h3>
+
+    @if (Reviewsarr == null)
+    {
+        <p>Loading reviews...</p>
+    }
+    else if (!Reviewsarr.Any())
+    {
+        <p>No reviews available yet.</p>
+    }
+    else
+    {
+        <div class="reviews-grid">
+            @foreach (var review in Reviewsarr)
+            {
+                <div class="review-card" @key="review.VideoUrl">
+                    <h4>@review.ProductName</h4>
+                    <video 
+                        width="100%" 
+                        height="240" 
+                        controls 
+                        controlsList="nodownload noplaybackrate noremoteplayback"
+                        preload="metadata"
+                        style="border-radius: 10px; outline: none; background-color: #111;"
+                    >
+                        <source src="@review.VideoUrl" type="video/mp4" />
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+            }
+        </div>
+    }
+</div>
 
 @code {
-    private List<ReviewItem>? Reviewsarr;
+    private List<ReviewItem> Reviewsarr = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -37,14 +48,14 @@ else
         {
             ProductName = r.productName,
             VideoUrl = $"data:video/mp4;base64,{r.video}"
-        }).ToList();
+        }).ToList() ?? new List<ReviewItem>();
     }
 
     private class ReviewDto
     {
         public int id { get; set; }
         public string productName { get; set; } = "";
-        public string video { get; set; } = ""; // base64
+        public string video { get; set; } = "";
     }
 
     private class ReviewItem

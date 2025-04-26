@@ -4,3 +4,8 @@ window.scrollElementHorizontally = (element, offset) => {
         element.scrollLeft += offset;
     });
 };
+window.scrollElementVertically = (element, amount) => {
+    if (element) {
+        element.scrollBy({ top: amount, behavior: 'smooth' });
+    }
+}
