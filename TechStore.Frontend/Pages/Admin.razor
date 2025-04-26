@@ -1,6 +1,7 @@
 @page "/admin"
 @inject HttpClient Http
 @inject NavigationManager Navigation
+@using Microsoft.AspNetCore.WebUtilities
 @inject CustomAuthStateProvider AuthStateProvider
 @using Microsoft.AspNetCore.Components.Forms
 
@@ -53,11 +54,27 @@ else if (CurrentTab == "faq")
         </div>
     </div>
 }
+else if (CurrentTab == "reviews")
+{
+    <h3 class="admin-title">Add Review</h3>
+
+    <div class="admin-container">
+        <div class="admin-form">
+            <label>Product Name:</label>
+            <input @bind="ReviewProductName" placeholder="Enter product name" />
+
+            <label>Video File (MP4):</label>
+            <InputFile OnChange="HandleVideoUpload" accept="video/mp4" />
+
+            <button @onclick="SubmitReview">Upload Review</button>
+        </div>
+    </div>
+}
 
 <p class="admin-message">@Message</p>
 
 @code {
-    private string CurrentTab { get; set; } = "products";
+    private string CurrentTab = "products";
 
     private string Name { get; set; } = string.Empty;
     private string Description { get; set; } = string.Empty;
@@ -75,16 +92,38 @@ else if (CurrentTab == "faq")
 
     protected override async Task OnInitializedAsync()
     {
+
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = authState.User;
 
         IsSuperuser = user.IsInRole("superuser");
-
         if (!IsSuperuser)
-        {
-            Navigation.NavigateTo("/home", forceLoad: false);
-        }
+            Navigation.NavigateTo("/home");
     }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+        if (query.TryGetValue("tab", out var tabValue))
+        {
+            CurrentTab = tabValue!;
+        }
+        else
+        {
+            CurrentTab = "products"; // fallback
+        }
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        IsSuperuser = user.IsInRole("superuser");
+        if (!IsSuperuser)
+            Navigation.NavigateTo("/home");
+
+        StateHasChanged();
+    }
+
 
     private void HandleImageUpload(InputFileChangeEventArgs e)
     {
@@ -148,4 +187,41 @@ else if (CurrentTab == "faq")
         FaqQuestion = string.Empty;
         FaqAnswer = string.Empty;
     }
+
+    private string ReviewProductName { get; set; } = string.Empty;
+    private IBrowserFile? ReviewVideoFile { get; set; }
+
+    private void HandleVideoUpload(InputFileChangeEventArgs e)
+    {
+        if (e.FileCount > 0)
+            ReviewVideoFile = e.File;
+    }
+
+    private async Task SubmitReview()
+    {
+        if (string.IsNullOrWhiteSpace(ReviewProductName) || ReviewVideoFile == null)
+        {
+            Message = "Product name and video are required.";
+            return;
+        }
+
+        var formData = new MultipartFormDataContent
+        {
+            { new StringContent(ReviewProductName), "productName" }
+        };
+
+        var stream = ReviewVideoFile.OpenReadStream(50 * 1024 * 1024); // up to 50 MB
+        var videoContent = new StreamContent(stream);
+        videoContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("video/mp4");
+        formData.Add(videoContent, "video", ReviewVideoFile.Name);
+
+        var response = await Http.PostAsync("/admin/reviews", formData);
+        Message = response.IsSuccessStatusCode
+            ? "Review uploaded successfully!"
+            : await response.Content.ReadAsStringAsync();
+
+        ReviewProductName = string.Empty;
+        ReviewVideoFile = null;
+    }
+
 }

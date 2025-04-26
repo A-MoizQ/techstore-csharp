@@ -107,6 +107,27 @@ using (var faqConn = new SqliteConnection($"Data Source={faqDbPath}"))
 }
 
 
+// 📦 Ensure reviews.db exists with correct table
+var reviewsDbPath = "databases/reviews.db";
+
+if (!File.Exists(reviewsDbPath))
+{
+    Directory.CreateDirectory(Path.GetDirectoryName(reviewsDbPath)!);
+
+    using var conn = new SqliteConnection($"Data Source={reviewsDbPath}");
+    conn.Open();
+
+    var cmd = conn.CreateCommand();
+    cmd.CommandText = @"
+        CREATE TABLE reviews (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            productName TEXT NOT NULL,
+            video BLOB NOT NULL
+        );
+    ";
+    cmd.ExecuteNonQuery();
+}
+
 
 // Set up cart database table 
 
@@ -991,6 +1012,66 @@ app.MapPost("/faqs", async (HttpContext http, FAQEntry faq) =>
 
     return Results.Ok("FAQ added successfully.");
 });
+
+// ➕ POST a new review (admin only)
+app.MapPost("/admin/reviews", async (HttpContext context) =>
+{
+    // if (!context.User.Identity?.IsAuthenticated == true || !context.User.IsInRole("superuser"))
+    //     return Results.Unauthorized();
+
+    var form = await context.Request.ReadFormAsync();
+
+    string productName = form["productName"].ToString();
+
+    byte[]? videoBytes = null;
+    if (form.Files.Count > 0)
+    {
+        var videoFile = form.Files["video"];
+        if (videoFile != null)
+        {
+            using var ms = new MemoryStream();
+            await videoFile.CopyToAsync(ms);
+            videoBytes = ms.ToArray();
+        }
+    }
+
+    if (string.IsNullOrWhiteSpace(productName) || videoBytes == null)
+        return Results.BadRequest("Product name and video are required.");
+
+    using var conn = new SqliteConnection($"Data Source=databases/reviews.db");
+    conn.Open();
+    var cmd = conn.CreateCommand();
+    cmd.CommandText = "INSERT INTO reviews (productName, video) VALUES (@pname, @video)";
+    cmd.Parameters.AddWithValue("@pname", productName);
+    cmd.Parameters.AddWithValue("@video", videoBytes);
+    cmd.ExecuteNonQuery();
+
+    return Results.Ok("Review uploaded successfully.");
+});
+
+
+// 📋 GET all reviews (for public users)
+app.MapGet("/reviews", () =>
+{
+    using var conn = new SqliteConnection($"Data Source=databases/reviews.db");
+    conn.Open();
+    var cmd = conn.CreateCommand();
+    cmd.CommandText = "SELECT id, productName, video FROM reviews ORDER BY id ASC";
+
+    var list = new List<object>();
+    using var rdr = cmd.ExecuteReader();
+    while (rdr.Read())
+    {
+        list.Add(new {
+            id          = rdr.GetInt32(0),
+            productName = rdr.GetString(1),
+            video       = Convert.ToBase64String((byte[])rdr["video"]) // Base64 encode video for sending
+        });
+    }
+
+    return Results.Json(list);
+});
+
 
 
 app.Run();

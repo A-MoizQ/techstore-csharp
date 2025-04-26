@@ -1,0 +1,55 @@
+@page "/reviews"
+@inject HttpClient Http
+
+<h3 class="section-title">Product Reviews</h3>
+
+@if (Reviewsarr == null)
+{
+    <p>Loading reviews...</p>
+}
+else if (Reviewsarr.Count == 0)
+{
+    <p>No reviews available yet.</p>
+}
+else
+{
+    <div class="reviews-grid">
+        @foreach (var review in Reviewsarr)
+        {
+            <div class="review-card">
+                <h4>@review.ProductName</h4>
+                <video width="320" height="240" controls>
+                    <source src="@review.VideoUrl" type="video/mp4" />
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private List<ReviewItem>? Reviewsarr;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var data = await Http.GetFromJsonAsync<List<ReviewDto>>("/reviews");
+        Reviewsarr = data?.Select(r => new ReviewItem
+        {
+            ProductName = r.productName,
+            VideoUrl = $"data:video/mp4;base64,{r.video}"
+        }).ToList();
+    }
+
+    private class ReviewDto
+    {
+        public int id { get; set; }
+        public string productName { get; set; } = "";
+        public string video { get; set; } = ""; // base64
+    }
+
+    private class ReviewItem
+    {
+        public string ProductName { get; set; } = "";
+        public string VideoUrl { get; set; } = "";
+    }
+}
